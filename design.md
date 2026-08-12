@@ -1,29 +1,32 @@
-# Wanderstamp (旅印足跡) - Mobile App Interface Design
+# Wanderstamp Mobile Interface Design
 
-## 1. Overview & Vision
-Wanderstamp 是一個專為博物館愛好者打造的旅行與足跡紀錄行動應用程式。本設計針對行動裝置（iOS/Android）進行優化，強調單手操作、沈浸式視覺體驗與流暢的卡片互動。
+## Product direction
 
-## 2. Screen List & Primary Functionality
-1. **Home / Dashboard (`(tabs)/index.tsx`)**
-   - **Content**: 統計摘要（已造訪博物館總數、國家數、最近足跡）、快速導覽卡片、最近紀錄清單。
-   - **Functionality**: 快速檢視成就、跳轉至新增紀錄或清單頁面。
-2. **Museum List (`(tabs)/explore.tsx` or similar)**
-   - **Content**: 所有已造訪博物館的清單，支援依國家或年份篩選、搜尋。
-   - **Functionality**: 點擊查看詳細資訊、照片與備忘錄。
-3. **Add Record (`modal/add-museum.tsx` or inline form)**
-   - **Content**: 輸入表單（博物館名稱、城市、國家、造訪日期、心得備忘錄、照片上傳）。
-   - **Functionality**: 新增並儲存至本機或雲端資料庫。
-4. **Passport / Profile (`(tabs)/profile.tsx`)**
-   - **Content**: 個人旅行護照風格頁面，展示徽章與年度統計。
+Wanderstamp is a portrait-first iOS-style museum travel passport. The first screen is a calm world map that makes the user’s cultural journey immediately visible. The design uses deep ocean blue `#0A5E75`, paper cream `#F7F4EE`, stamp gold `#D9B86C`, ink `#17242B`, and muted teal `#B7E4E8`.
 
-## 3. Key User Flows
-- **Flow 1: 瀏覽足跡總覽**
-  開啟 App -> 首頁顯示統計卡片與近期造訪清單 -> 點擊單一項目進入細節。
-- **Flow 2: 新增博物館紀錄**
-  點擊底部導航或浮動按鈕 `+` -> 填寫博物館名稱、城市與心得 -> 點擊儲存 -> 即時更新於首頁與清單。
+## Screen list
 
-## 4. Color Choices & Branding
-- **Primary Color**: `#0a7ea4` (Ocean Blue / Wanderlust Theme)
-- **Background**: `#ffffff` (Light) / `#151718` (Dark)
-- **Surface**: `#f5f5f5` (Light) / `#1e2022` (Dark)
-- **Accent / Gold**: `#F59E0B` (Passport Stamp Gold)
+| Screen | Primary content and functionality |
+|---|---|
+| World Footprints | Zoomable and pannable world map, updated museum markers, museum names, country/city summary, and link to the full library. |
+| Museum Library | Searchable museum list with country and year filters. |
+| Museum Detail | Museum metadata, visit note, rating, photo Album grid, multi-select photo import, and delete photo action. |
+| Add Museum | Form for museum name, city, country, visit date, rating, and notes. |
+| My Profile | Collector identity, museum count, editable name, title, biography, and optional avatar URL. |
+| Native Store Release | Production app configuration with portrait orientation, app icon, version 1.1.0, iOS/Android bundle IDs, and EAS build profiles. |
+
+## Key user flows
+
+1. The user opens Wanderstamp and immediately sees the world map. They pinch or use the zoom controls, then tap an updated museum marker to open its detail screen.
+2. The user opens a museum detail screen, taps “新增照片”, allows photo access, selects one or more images, and sees them appear in a two-column Album. Each image can be removed later.
+3. The user opens “我的”, taps “編輯”, enters a name, collector identity, biography, and optional avatar URL, then saves. The profile remains available after restart because it is stored locally.
+4. The user records a new museum from the add action. The new museum becomes part of the local library and is mapped using saved or known museum coordinates.
+5. The user tests using Expo Go during development, then uses the production native build profile for App Store / Google Play distribution. Store publication requires developer credentials, signing, submission, and review outside the development preview.
+
+## Interaction and accessibility
+
+The map supports pinch zoom and pan on native iOS/Android builds, plus visible plus/minus controls. Markers expose museum name and city. Primary actions use press opacity feedback and light haptics. Album images have descriptive labels and the empty state explains how to add the first memory. All form fields have visible labels and keyboard-aware layout.
+
+## Data assumptions
+
+Museum records, photos, and profile fields are currently saved locally with AsyncStorage. Photo URIs are device-local and are not yet cloud-backed. Cross-device sync, account login, and shared photo storage are intentionally deferred until the local product flow is validated.

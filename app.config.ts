@@ -28,11 +28,10 @@ const schemeFromBundleId = `manus${timestamp}`;
 
 const env = {
   // App branding - update these values directly (do not use env vars)
-  appName: "Wanderstamp Mobile",
+  appName: "Wanderstamp",
   appSlug: "museum-tracker-mobile",
-  // S3 URL of the app logo - set this to the URL returned by generate_image when creating custom logo
-  // Leave empty to use the default icon from assets/images/icon.png
-  logoUrl: "",
+  // Logo asset reserved by the project image pipeline.
+  logoUrl: "/manus-storage/wanderstamp-logo_3cb215bd.png",
   scheme: schemeFromBundleId,
   iosBundleId: bundleId,
   androidPackage: bundleId,

@@ -13,3 +13,4 @@
 - [x] 實作個人 Profile 編輯功能（姓名、頭銜、個人簡介）
 - [x] 實作博物館照片 Album 上傳與藝廊檢視
 - [x] 準備 App Store 正式原生打包與發佈說明
+- [x] 修復 Web 預覽錯誤：react-native-maps 原生 codegenNativeComponent 不應在 Web 載入

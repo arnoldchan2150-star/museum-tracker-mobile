@@ -8,3 +8,4 @@
 - [x] 生成專案專屬 App Logo 與品牌設定
 - [ ] 驗證並建立最終檢查點
 - [x] 修復 Expo Go 開啟時 port 8081 的 HTTP 502 upstream_connect_failed 問題
+- [x] 排查 Expo Go 仍然無法開啟：確認 Metro 原生 bundle、工作區代理與 QR 連線模式

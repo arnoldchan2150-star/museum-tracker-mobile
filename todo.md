@@ -29,3 +29,10 @@
 - [x] 實作外觀模式切換選項（支援跟隨系統、淺色模式與深色模式偏好保存）
 - [x] 修復登入成功後畫面仍停留在登入介面的問題（確保 OAuth 回呼與 AuthGate即時刷新）
 - [x] 修復掃描 Expo QR Code 後無法開啟的問題（確保 Metro 通訊協定與 tunnel/lan 設定正確）
+- [ ] 進一步排查與修復 Expo QR Code 掃描後無法開啟的問題（分析 tunnel 連線、ngrok 輸出與 Expo Go 相容性）
+- [x] 修復 Apple ID 與 Google 登入失敗問題（更新 audience、AuthSession redirect、回呼與 session 驗證路由；真機 provider E2E 仍需驗證）
+
+- [x] 修正 Apple Go／正式原生環境的 audience 驗證分流，並保留正式 bundle ID 安全驗證
+- [x] 更新 Google／Manus OAuth 使用 AuthSession redirect URI 與原生回呼處理
+- [x] 加入 OAuth 取消回呼與 Expo Go／Development Build 的雙語錯誤提示
+- [x] 新增 EAS Development Build profile 與 App Store OAuth 測試文件；原生登入仍需在真機完成

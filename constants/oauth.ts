@@ -1,6 +1,5 @@
-import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
-import Constants from "expo-constants";
+import { makeRedirectUri } from "expo-auth-session";
 import * as ReactNative from "react-native";
 
 // Extract scheme from bundle ID (last segment timestamp, prefixed with "manus")
@@ -8,8 +7,6 @@ import * as ReactNative from "react-native";
 const bundleId = "com.app.museumtrackermobile";
 const timestamp = bundleId.split(".").pop()?.replace(/^t/, "") ?? "";
 const schemeFromBundleId = `manus${timestamp}`;
-
-const isExpoGo = (Constants as { appOwnership?: string }).appOwnership === "expo";
 
 const env = {
   portal: process.env.EXPO_PUBLIC_OAUTH_PORTAL_URL ?? "",
@@ -75,11 +72,15 @@ const encodeState = (value: string) => {
 export const getRedirectUri = () => {
   if (ReactNative.Platform.OS === "web") {
     return `${getApiBaseUrl()}/api/oauth/callback`;
-  } else {
-    return Linking.createURL("/oauth/callback", isExpoGo ? undefined : {
-      scheme: env.deepLinkScheme,
-    });
   }
+
+  // AuthSession uses the app config scheme in a Development Build / production app,
+  // and automatically falls back to Expo Go's exp:// URL while running in Expo Go.
+  return makeRedirectUri({
+    native: `${env.deepLinkScheme}://oauth/callback`,
+    scheme: env.deepLinkScheme,
+    path: "oauth/callback",
+  });
 };
 
 export const getLoginUrl = () => {
@@ -120,6 +121,7 @@ export async function startOAuthLogin(): Promise<string | null> {
     await completeOAuthCallback(result.url);
   } else if (result.type === "cancel" || result.type === "dismiss") {
     console.info("[OAuth] Login browser session was cancelled");
+    throw new Error("OAUTH_CANCELLED");
   }
   return result.type === "success" ? result.url ?? null : null;
 }

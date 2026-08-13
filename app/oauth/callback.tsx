@@ -37,8 +37,8 @@ export default function OAuthCallback() {
           console.log("[OAuth] Session token found in params (web callback)");
           await Auth.setSessionToken(params.sessionToken);
 
-          await persistEncodedOAuthUser(params.user);
-          if (!params.user) await persistOAuthUser(await Api.getMe());
+          const persistedUser = await persistEncodedOAuthUser(params.user);
+          if (!persistedUser) await persistOAuthUser(await Api.getMe());
           console.log("[OAuth] Callback user info persisted");
 
           notifyAuthChanged();
@@ -139,12 +139,11 @@ export default function OAuthCallback() {
         if (sessionToken) {
           console.log("[OAuth] Session token found in URL, storing...");
           await Auth.setSessionToken(sessionToken);
-          await persistEncodedOAuthUser(encodedUser);
-          if (!encodedUser) await persistOAuthUser(await Api.getMe());
+          const persistedUser = await persistEncodedOAuthUser(encodedUser);
+          if (!persistedUser) await persistOAuthUser(await Api.getMe());
           console.log("[OAuth] Session token and user info stored successfully");
           notifyAuthChanged();
-          // User info is already in the OAuth callback response
-          // No need to fetch from API
+          // User info is normally in the callback response; missing payloads are resolved above.
           setStatus("success");
           console.log("[OAuth] Redirecting to home...");
           setTimeout(() => {

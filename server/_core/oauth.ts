@@ -1,9 +1,10 @@
 import { COOKIE_NAME, ONE_YEAR_MS } from "../../shared/const.js";
 import type { Express, Request, Response } from "express";
-import { createRemoteJWKSet, jwtVerify } from "jose";
+import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import { getUserByOpenId, upsertUser } from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
+import { getAppleAudiences } from "./apple-audience";
 
 const APPLE_ISSUER = "https://appleid.apple.com";
 const APPLE_CLIENT_ID = process.env.APPLE_CLIENT_ID || "com.app.museumtrackermobile";
@@ -120,11 +121,32 @@ export function registerOAuthRoutes(app: Express) {
     }
 
     try {
-      const { payload } = await jwtVerify(identityToken, appleJwks, {
-        issuer: APPLE_ISSUER,
-        audience: APPLE_CLIENT_ID,
-        algorithms: ["RS256"],
-      });
+      // Expo Go issues an Apple token for host.exp.Exponent. Accept it only on the
+      // development server; production/TestFlight must use the app's bundle ID.
+      const expectedAudiences = getAppleAudiences(APPLE_CLIENT_ID);
+      let verifiedPayload: JWTPayload | null = null;
+      let lastJwtError: unknown = null;
+
+      for (const aud of expectedAudiences) {
+        try {
+          const { payload } = await jwtVerify(identityToken, appleJwks, {
+            issuer: APPLE_ISSUER,
+            audience: aud,
+            algorithms: ["RS256"],
+          });
+          verifiedPayload = payload;
+          break;
+        } catch (err) {
+          lastJwtError = err;
+        }
+      }
+
+      if (!verifiedPayload) {
+        console.error("[OAuth] Apple token JWT verification failed for all audiences:", lastJwtError);
+        res.status(401).json({ error: "Apple identity verification failed: audience mismatch" });
+        return;
+      }
+      const payload = verifiedPayload;
       const subject = typeof payload.sub === "string" ? payload.sub : "";
       const tokenNonce = typeof payload.nonce === "string" ? payload.nonce : "";
       if (!subject || subject !== requestedUser || tokenNonce !== nonce) {

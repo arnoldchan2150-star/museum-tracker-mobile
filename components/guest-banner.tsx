@@ -16,7 +16,7 @@ export function GuestBanner({ compact = false }: { compact?: boolean }) {
       </View>
       <LanguageSwitcher compact />
     </View>
-    <Pressable onPress={() => void startOAuthLogin().catch((error) => Alert.alert(t("auth.loginErrorTitle"), error instanceof Error ? error.message : t("auth.loginError")))} style={({ pressed }) => [styles.button, { backgroundColor: colors.primary }, pressed && styles.pressed]}><Text style={styles.buttonText}>{t("guest.login")}</Text></Pressable>
+    <Pressable onPress={() => void startOAuthLogin().catch((error) => Alert.alert(t("auth.loginErrorTitle"), error instanceof Error && error.message === "OAUTH_CANCELLED" ? t("auth.oauthCancelled") : error instanceof Error ? error.message : t("auth.loginError")))} style={({ pressed }) => [styles.button, { backgroundColor: colors.primary }, pressed && styles.pressed]}><Text style={styles.buttonText}>{t("guest.login")}</Text></Pressable>
     <AppleSignInButton compact />
   </View>;
 }

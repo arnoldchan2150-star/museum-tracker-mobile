@@ -13,11 +13,13 @@ import { getAutoSyncEnabled, isPendingSync, setAutoSyncEnabled, cancelAutoSyncRu
 import { getStoredProfile, saveStoredProfile } from "@/lib/museum-storage";
 import { getProfileInitial, type UserProfile } from "@/types/museum";
 import { useI18n } from "@/lib/i18n";
+import { useThemeContext, type ThemePreference } from "@/lib/theme-provider";
 
 export default function SettingsScreen() {
   const router = useRouter();
   const colors = useColors();
   const { t } = useI18n();
+  const { themePreference, setThemePreference } = useThemeContext();
   const { user, isAuthenticated, logout } = useAuth();
   const { isGuestPreview } = useGuestPreview();
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -103,6 +105,11 @@ export default function SettingsScreen() {
   const loginMethod = user?.loginMethod === "apple" ? "Apple ID" : user?.loginMethod || "Manus OAuth";
   const accountId = user?.openId ? maskAccountId(user.openId) : "—";
   const avatar = profile.avatar?.trim();
+  const themeOptions: { value: ThemePreference; label: string }[] = [
+    { value: "system", label: t("settings.themeSystem") },
+    { value: "light", label: t("settings.themeLight") },
+    { value: "dark", label: t("settings.themeDark") },
+  ];
 
   return <ScreenContainer edges={["top", "left", "right"]}>
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -116,6 +123,17 @@ export default function SettingsScreen() {
         </View>
         <Text style={[styles.title, { color: colors.foreground }]}>{t("settings.title")}</Text>
         <Text style={[styles.subtitle, { color: colors.muted }]}>{t("settings.subtitle")}</Text>
+
+        <SectionTitle icon="gear" title={t("settings.appearanceSection")} colors={colors} />
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.appearanceHint, { color: colors.muted }]}>{t("settings.appearanceHint")}</Text>
+          <View style={styles.themeOptions}>
+            {themeOptions.map((option) => {
+              const selected = themePreference === option.value;
+              return <Pressable key={option.value} accessibilityRole="radio" accessibilityState={{ selected }} onPress={() => setThemePreference(option.value)} style={({ pressed }) => [styles.themeOption, { borderColor: selected ? colors.primary : colors.border, backgroundColor: selected ? colors.background : "transparent" }, pressed && styles.pressed]}><Text style={[styles.themeOptionText, { color: selected ? colors.primary : colors.foreground }]}>{option.label}</Text>{selected ? <IconSymbol name="checkmark" size={17} color={colors.primary} /> : null}</Pressable>;
+            })}
+          </View>
+        </View>
 
         <View style={[styles.identityCard, { backgroundColor: colors.primary }]}>
           <View style={styles.avatar}>{avatar ? <Text style={styles.avatarUrl}>●</Text> : <Text style={[styles.avatarText, { color: colors.primary }]}>{getProfileInitial(profile)}</Text>}</View>
@@ -165,7 +183,7 @@ function maskAccountId(value: string) {
   return value.length > 12 ? `${value.slice(0, 4)}…${value.slice(-4)}` : value;
 }
 
-function SectionTitle({ icon, title, colors }: { icon: "person.crop.circle.fill" | "lock" | "cloud.fill"; title: string; colors: ReturnType<typeof useColors> }) {
+function SectionTitle({ icon, title, colors }: { icon: "person.crop.circle.fill" | "lock" | "cloud.fill" | "gear"; title: string; colors: ReturnType<typeof useColors> }) {
   return <View style={styles.sectionTitle}><IconSymbol name={icon} size={18} color={colors.primary} /><Text style={[styles.sectionText, { color: colors.foreground }]}>{title}</Text></View>;
 }
 
@@ -195,6 +213,10 @@ const styles = StyleSheet.create({
   identityTitle: { color: "#D8F0F1", fontSize: 12, marginTop: 3 },
   sectionTitle: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 24, marginBottom: 9 },
   sectionText: { fontSize: 16, fontWeight: "800" },
+  appearanceHint: { fontSize: 12, lineHeight: 18 },
+  themeOptions: { gap: 9, marginTop: 13 },
+  themeOption: { minHeight: 46, borderWidth: 1, borderRadius: 13, paddingHorizontal: 13, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  themeOptionText: { fontSize: 13, fontWeight: "800" },
   card: { borderWidth: 1, borderRadius: 20, padding: 16 },
   field: { marginTop: 11 },
   fieldLabel: { fontSize: 12, fontWeight: "800", marginBottom: 6 },

@@ -8,6 +8,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
 import { formatVisitedDate, getMuseumNote, getMuseums, getPalette, getStars, updateMuseumMedia, updateMuseumMediaDescription } from "@/lib/museum-storage";
+import { markDataChanged } from "@/lib/auto-sync";
 import { getMuseumMedia, type MuseumItem, type MuseumMedia } from "@/types/museum";
 
 export default function MuseumDetailScreen() {
@@ -33,6 +34,7 @@ export default function MuseumDetailScreen() {
       const selected: MuseumMedia[] = result.assets.map((asset, index) => ({ id: `media-${Date.now()}-${index}`, uri: asset.uri, type: asset.type === "video" ? "video" : "photo", description: "", createdAt: now }));
       const nextMedia = [...getMuseumMedia(museum), ...selected];
       const nextItems = await updateMuseumMedia(museum.id, nextMedia);
+      await markDataChanged();
       setMuseum(nextItems.find((item) => item.id === museum.id) ?? { ...museum, media: nextMedia });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
@@ -43,6 +45,7 @@ export default function MuseumDetailScreen() {
     if (!museum) return;
     const nextMedia = getMuseumMedia(museum).filter((media) => media.id !== mediaId);
     const nextItems = await updateMuseumMedia(museum.id, nextMedia);
+    await markDataChanged();
     setMuseum(nextItems.find((item) => item.id === museum.id) ?? { ...museum, media: nextMedia });
   };
 
@@ -50,6 +53,7 @@ export default function MuseumDetailScreen() {
   const saveDescription = async () => {
     if (!museum || !editingMedia) return;
     const nextItems = await updateMuseumMediaDescription(museum.id, editingMedia.id, descriptionDraft.trim());
+    await markDataChanged();
     setMuseum(nextItems.find((item) => item.id === museum.id) ?? museum);
     setEditingMedia(null);
     setDescriptionDraft("");

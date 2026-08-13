@@ -1,10 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getAccountStorageKey, getActiveAccountKey, legacyMuseumStorageKey, legacyProfileStorageKey } from "@/lib/account-scope";
 import type { MuseumDraft, MuseumItem, MuseumMedia, MuseumPhoto, UserProfile } from "@/types/museum";
-import { normalizeMuseum, normalizePhotos } from "@/types/museum";
+import { DEFAULT_PROFILE, normalizeMuseum, normalizePhotos, normalizeProfile } from "@/types/museum";
 export type { MuseumDraft } from "@/types/museum";
 
-const KEY = "wanderstamp.museums.v2";
-const PROFILE_KEY = "wanderstamp.profile.v1";
+const MUSEUMS_RESOURCE = "museums";
+const PROFILE_RESOURCE = "profile";
 
 const photo = (uri: string, description = ""): MuseumPhoto => ({ id: `seed-${uri.slice(-24)}`, uri, type: "photo", description, createdAt: "2025-04-18T09:00:00.000Z" });
 
@@ -14,17 +15,77 @@ const SEED: MuseumItem[] = [
   { id: "npm", name: "國立故宮博物院", city: "台北", country: "台灣", visitedDate: "2024-08-16", note: "翠玉白菜雕工細緻。", rating: 5, createdAt: "2024-08-16T09:00:00.000Z", photos: [] },
 ];
 
-const DEFAULT_PROFILE: UserProfile = { name: "旅印收藏家", title: "資深藝文與博物館漫遊者", bio: "用雙腳與護照印章，紀錄世界各地的美術館與歷史博物館。", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400" };
-
 export type MuseumRecordDraft = Omit<MuseumItem, "id" | "createdAt">;
 
-export async function getMuseums(): Promise<MuseumItem[]> {
-  const raw = await AsyncStorage.getItem(KEY);
-  if (!raw) { await saveMuseums(SEED); return SEED; }
-  try { return (JSON.parse(raw) as MuseumItem[]).map(normalizeMuseum); } catch { return SEED; }
+async function getRequiredAccount() {
+  return getActiveAccountKey();
 }
 
-export async function saveMuseums(items: MuseumItem[]): Promise<void> { await AsyncStorage.setItem(KEY, JSON.stringify(items.map(normalizeMuseum))); }
+export async function hasLegacyDeviceData(): Promise<boolean> {
+  const accountKey = await getRequiredAccount();
+  if (!accountKey) return false;
+  const [legacyMuseums, legacyProfile, dismissed] = await Promise.all([
+    AsyncStorage.getItem(legacyMuseumStorageKey),
+    AsyncStorage.getItem(legacyProfileStorageKey),
+    AsyncStorage.getItem(getAccountStorageKey(accountKey, "legacy-dismissed")),
+  ]);
+  return Boolean((legacyMuseums || legacyProfile) && dismissed !== "true");
+}
+
+export async function importLegacyDeviceData(): Promise<{ museumCount: number; hasProfile: boolean }> {
+  const accountKey = await getRequiredAccount();
+  if (!accountKey) throw new Error("請先登入自己的帳戶，才能匯入這台裝置的舊紀錄。");
+  const [legacyMuseums, legacyProfile] = await Promise.all([
+    AsyncStorage.getItem(legacyMuseumStorageKey),
+    AsyncStorage.getItem(legacyProfileStorageKey),
+  ]);
+  let museums: MuseumItem[] = [];
+  if (legacyMuseums) {
+    try {
+      const parsed = JSON.parse(legacyMuseums) as MuseumItem[];
+      if (Array.isArray(parsed)) museums = parsed.map(normalizeMuseum);
+    } catch {
+      museums = [];
+    }
+  }
+  if (museums.length) await AsyncStorage.setItem(getAccountStorageKey(accountKey, MUSEUMS_RESOURCE), JSON.stringify(museums));
+  if (legacyProfile) {
+    try {
+      await AsyncStorage.setItem(getAccountStorageKey(accountKey, PROFILE_RESOURCE), JSON.stringify(normalizeProfile(JSON.parse(legacyProfile) as UserProfile)));
+    } catch {
+      // Ignore malformed legacy profile data.
+    }
+  }
+  await Promise.all([
+    AsyncStorage.removeItem(legacyMuseumStorageKey),
+    AsyncStorage.removeItem(legacyProfileStorageKey),
+    AsyncStorage.removeItem(getAccountStorageKey(accountKey, "legacy-dismissed")),
+  ]);
+  return { museumCount: museums.length, hasProfile: Boolean(legacyProfile) };
+}
+
+export async function discardLegacyDeviceData(): Promise<void> {
+  const accountKey = await getRequiredAccount();
+  if (accountKey) await AsyncStorage.setItem(getAccountStorageKey(accountKey, "legacy-dismissed"), "true");
+}
+
+export async function getMuseums(): Promise<MuseumItem[]> {
+  const accountKey = await getRequiredAccount();
+  if (!accountKey) return [];
+  const raw = await AsyncStorage.getItem(getAccountStorageKey(accountKey, MUSEUMS_RESOURCE));
+  if (!raw) return [];
+  try {
+    return (JSON.parse(raw) as MuseumItem[]).map(normalizeMuseum);
+  } catch {
+    return [];
+  }
+}
+
+export async function saveMuseums(items: MuseumItem[]): Promise<void> {
+  const accountKey = await getRequiredAccount();
+  if (!accountKey) throw new Error("請先登入自己的帳戶，才能儲存博物館足跡。");
+  await AsyncStorage.setItem(getAccountStorageKey(accountKey, MUSEUMS_RESOURCE), JSON.stringify(items.map(normalizeMuseum)));
+}
 
 export async function addMuseum(draft: MuseumDraft): Promise<MuseumItem> {
   const item = normalizeMuseum({ ...draft, id: String(Date.now()), createdAt: new Date().toISOString(), photos: draft.photos ?? [] });
@@ -55,10 +116,25 @@ export async function updateMuseumPhotoDescription(museumId: string, photoId: st
 }
 
 export async function getStoredProfile(): Promise<UserProfile> {
-  try { const json = await AsyncStorage.getItem(PROFILE_KEY); if (!json) { await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(DEFAULT_PROFILE)); return DEFAULT_PROFILE; } return JSON.parse(json) as UserProfile; } catch { return DEFAULT_PROFILE; }
+  const accountKey = await getRequiredAccount();
+  if (!accountKey) return DEFAULT_PROFILE;
+  try {
+    const json = await AsyncStorage.getItem(getAccountStorageKey(accountKey, PROFILE_RESOURCE));
+    return json ? normalizeProfile(JSON.parse(json) as UserProfile) : DEFAULT_PROFILE;
+  } catch {
+    return DEFAULT_PROFILE;
+  }
 }
 
-export async function saveStoredProfile(profile: UserProfile): Promise<void> { try { await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch (error) { console.error("Failed to save profile", error); } }
+export async function saveStoredProfile(profile: UserProfile): Promise<void> {
+  const accountKey = await getRequiredAccount();
+  if (!accountKey) throw new Error("請先登入自己的帳戶，才能儲存個人資料。");
+  try {
+    await AsyncStorage.setItem(getAccountStorageKey(accountKey, PROFILE_RESOURCE), JSON.stringify(normalizeProfile(profile)));
+  } catch (error) {
+    console.error("Failed to save profile", error);
+  }
+}
 
 export function sortMuseums(items: MuseumItem[]) { return [...items].sort((a, b) => b.visitedDate.localeCompare(a.visitedDate)); }
 export function searchMuseums(items: MuseumItem[], query: string) { const q = query.trim().toLowerCase(); return q ? items.filter((m) => [m.name, m.city, m.country, m.note].some((v) => v.toLowerCase().includes(q))) : items; }
@@ -70,13 +146,13 @@ export function getInitials(value: string) { return value.trim().slice(0, 1) || 
 export function getStars(value = 0) { return "★".repeat(Math.max(0, Math.min(5, value))); }
 export function getPalette(index: number) { const list = [{ background: "#DCEEF2", ink: "#0A5E75" }, { background: "#F4E7D0", ink: "#8A5A16" }, { background: "#E8E2F2", ink: "#69518A" }]; return list[index % list.length]; }
 export const demoMuseums = SEED;
-export const museumStorageKey = KEY;
+export const museumStorageKey = "wanderstamp.account.v1.<account>.museums";
 export function getDraft(): MuseumRecordDraft { return { name: "", city: "", country: "", visitedDate: new Date().toISOString().slice(0, 10), note: "", rating: 0, photos: [], media: [] }; }
 export function isDraftValid(draft: MuseumRecordDraft) { return Boolean(draft.name.trim() && draft.city.trim() && draft.country.trim()); }
 export function getMuseumSummary(museum: MuseumItem) { return `${museum.city} · ${museum.country}`; }
 export function getMuseumNote(museum: MuseumItem) { return museum.note || "尚未留下參觀筆記"; }
-export function getStorageStatus() { return "本機儲存 · 離線也能記錄"; }
-export function resetMuseums() { return saveMuseums(SEED); }
+export function getStorageStatus() { return "個人帳戶儲存 · 離線也能記錄"; }
+export function resetMuseums() { return saveMuseums([]); }
 export function getRecentMuseums(items: MuseumItem[], limit = 3) { return sortMuseums(items).slice(0, limit); }
 export function filterMuseums(items: MuseumItem[], country: string | null, year: string | null) { return items.filter((m) => (!country || m.country === country) && (!year || m.visitedDate.startsWith(year))); }
 export function getAccessibilityLabel(museum: MuseumItem) { return `${museum.name}，${getMuseumSummary(museum)}`; }

@@ -1,32 +1,54 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { backupLocalData } from "@/lib/cloud-sync";
+import { getAccountStorageKey, getActiveAccountKey } from "@/lib/account-scope";
 
-const AUTO_SYNC_KEY = "wanderstamp.auto-sync.enabled";
-const PENDING_SYNC_KEY = "wanderstamp.auto-sync.pending";
+const AUTO_SYNC_RESOURCE = "auto-sync.enabled";
+const PENDING_SYNC_RESOURCE = "auto-sync.pending";
 let timer: ReturnType<typeof setTimeout> | null = null;
 let inFlight = false;
 let queued = false;
 
+async function getScopedKey(resource: string): Promise<string | null> {
+  const accountKey = await getActiveAccountKey();
+  return accountKey ? getAccountStorageKey(accountKey, resource) : null;
+}
+
 export async function getAutoSyncEnabled(): Promise<boolean> {
-  return (await AsyncStorage.getItem(AUTO_SYNC_KEY)) !== "false";
+  const key = await getScopedKey(AUTO_SYNC_RESOURCE);
+  if (!key) return false;
+  const value = await AsyncStorage.getItem(key);
+  return value !== "false";
 }
 
 export async function setAutoSyncEnabled(enabled: boolean): Promise<void> {
-  await AsyncStorage.setItem(AUTO_SYNC_KEY, String(enabled));
+  const key = await getScopedKey(AUTO_SYNC_RESOURCE);
+  if (!key) return;
+  await AsyncStorage.setItem(key, String(enabled));
   if (enabled && (await isPendingSync())) scheduleAutoSync();
 }
 
 export async function isPendingSync(): Promise<boolean> {
-  return (await AsyncStorage.getItem(PENDING_SYNC_KEY)) === "true";
+  const key = await getScopedKey(PENDING_SYNC_RESOURCE);
+  if (!key) return false;
+  return (await AsyncStorage.getItem(key)) === "true";
 }
 
 export async function markDataChanged(): Promise<void> {
-  await AsyncStorage.setItem(PENDING_SYNC_KEY, "true");
+  const key = await getScopedKey(PENDING_SYNC_RESOURCE);
+  if (!key) return;
+  await AsyncStorage.setItem(key, "true");
   if (await getAutoSyncEnabled()) scheduleAutoSync();
 }
 
 export async function clearPendingSync(): Promise<void> {
-  await AsyncStorage.removeItem(PENDING_SYNC_KEY);
+  const key = await getScopedKey(PENDING_SYNC_RESOURCE);
+  if (key) await AsyncStorage.removeItem(key);
+}
+
+export function cancelAutoSyncRuntime(): void {
+  if (timer) clearTimeout(timer);
+  timer = null;
+  queued = false;
 }
 
 function scheduleAutoSync(): void {
@@ -35,7 +57,8 @@ function scheduleAutoSync(): void {
 }
 
 export async function retryPendingAutoSync(): Promise<boolean> {
-  if (!(await getAutoSyncEnabled()) || !(await isPendingSync())) return false;
+  const accountKey = await getActiveAccountKey();
+  if (!accountKey || !(await getAutoSyncEnabled()) || !(await isPendingSync())) return false;
   if (inFlight) { queued = true; return false; }
   inFlight = true;
   try {

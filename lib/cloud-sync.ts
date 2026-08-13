@@ -1,6 +1,7 @@
 import { getApiBaseUrl } from "@/constants/oauth";
 import { createTRPCClient } from "@/lib/trpc";
 import { getMuseums, getStoredProfile, saveMuseums, saveStoredProfile } from "@/lib/museum-storage";
+import { getActiveAccountKey } from "@/lib/account-scope";
 import { getMuseumMedia, normalizeMuseum, normalizeProfile, type MuseumItem, type MuseumMedia, type UserProfile } from "@/types/museum";
 
 const SYNC_VERSION = 1;
@@ -67,6 +68,7 @@ function parseSnapshot(payload: string): CloudSnapshot {
 }
 
 export async function backupLocalData(): Promise<{ updatedAt: string; mediaCount: number }> {
+  if (!(await getActiveAccountKey())) throw new Error("請先登入自己的帳戶，再進行雲端備份。");
   const [museums, profile] = await Promise.all([getMuseums(), getStoredProfile()]);
   const uploadedMuseums: MuseumItem[] = [];
   let mediaCount = 0;
@@ -86,6 +88,7 @@ export async function backupLocalData(): Promise<{ updatedAt: string; mediaCount
 }
 
 export async function restoreCloudData(): Promise<{ updatedAt: string; museumCount: number; mediaCount: number } | null> {
+  if (!(await getActiveAccountKey())) throw new Error("請先登入自己的帳戶，再從雲端還原。");
   const remote = await client.cloudSync.get.query();
   if (!remote) return null;
   const snapshot = parseSnapshot(remote.payload);

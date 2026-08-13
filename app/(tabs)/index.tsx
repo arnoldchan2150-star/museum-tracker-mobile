@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { WorldMap } from "@/components/world-map";
@@ -13,7 +13,7 @@ export default function HomeScreen() {
   const [museums, setMuseums] = useState<MuseumItem[]>([]);
   const [loading, setLoading] = useState(true);
   const load = useCallback(async () => { setMuseums(await getMuseums()); setLoading(false); }, []);
-  useEffect(() => { void load(); }, [load]);
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
   const stats = getStats(museums);
   if (loading) return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={colors.primary} /></ScreenContainer>;
   return <ScreenContainer edges={["top", "left", "right"]}><View style={styles.page}><View style={styles.header}><View><Text style={[styles.eyebrow, { color: colors.primary }]}>WANDERSTAMP</Text><Text style={[styles.title, { color: colors.foreground }]}>世界足跡</Text><Text style={[styles.subtitle, { color: colors.muted }]}>每個標記，都是一次看見世界的證明。</Text></View><View style={[styles.counter, { borderColor: colors.border, backgroundColor: colors.surface }]}><Text style={[styles.counterNumber, { color: colors.primary }]}>{stats.museums}</Text><Text style={[styles.counterLabel, { color: colors.muted }]}>間已更新</Text></View></View><View style={[styles.mapCard, { backgroundColor: colors.surface, borderColor: colors.border }]}><WorldMap museums={museums} colors={colors} onSelect={(museum) => router.push({ pathname: "/museum/[id]", params: { id: museum.id } })} /></View><View style={styles.mapFooter}><View><Text style={[styles.footerTitle, { color: colors.foreground }]}>你的文化航線</Text><Text style={[styles.footerText, { color: colors.muted }]}>{stats.countries} 個國家 · {stats.cities} 座城市</Text></View><Pressable onPress={() => router.push("/(tabs)/library")} style={({ pressed }) => [styles.libraryButton, { borderColor: colors.primary }, pressed && styles.pressed]}><Text style={[styles.libraryButtonText, { color: colors.primary }]}>查看清單</Text><IconSymbol name="chevron.right" size={16} color={colors.primary} /></Pressable></View></View></ScreenContainer>;

@@ -1,11 +1,17 @@
 import * as Api from "@/lib/_core/api";
 import * as Auth from "@/lib/_core/auth";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 
 type UseAuthOptions = {
   autoFetch?: boolean;
 };
+
+const authSubscribers = new Set<() => void>();
+
+function notifyAuthSubscribers() {
+  authSubscribers.forEach((subscriber) => subscriber());
+}
 
 export function useAuth(options?: UseAuthOptions) {
   const { autoFetch = true } = options ?? {};
@@ -91,10 +97,17 @@ export function useAuth(options?: UseAuthOptions) {
       await Auth.clearUserInfo();
       setUser(null);
       setError(null);
+      notifyAuthSubscribers();
     }
   }, []);
 
   const isAuthenticated = useMemo(() => Boolean(user), [user]);
+
+  useEffect(() => {
+    const subscriber = () => { void fetchUser(); };
+    authSubscribers.add(subscriber);
+    return () => { authSubscribers.delete(subscriber); };
+  }, [fetchUser]);
 
   useEffect(() => {
     console.log("[useAuth] useEffect triggered, autoFetch:", autoFetch, "platform:", Platform.OS);
@@ -120,6 +133,13 @@ export function useAuth(options?: UseAuthOptions) {
     } else {
       console.log("[useAuth] autoFetch disabled, setting loading to false");
       setLoading(false);
+    }
+
+    if (Platform.OS !== "web") {
+      const subscription = AppState.addEventListener("change", (state) => {
+        if (state === "active" && autoFetch) void fetchUser();
+      });
+      return () => subscription.remove();
     }
   }, [autoFetch, fetchUser]);
 

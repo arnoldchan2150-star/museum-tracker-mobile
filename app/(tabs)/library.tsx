@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
@@ -12,13 +12,19 @@ type PhotoFilter = "all" | "with" | "without";
 export default function LibraryScreen() {
   const colors = useColors();
   const [items, setItems] = useState<MuseumItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [country, setCountry] = useState<string | null>(null);
   const [city, setCity] = useState<string | null>(null);
   const [year, setYear] = useState<string | null>(null);
   const [photoFilter, setPhotoFilter] = useState<PhotoFilter>("all");
 
-  useEffect(() => { void getMuseums().then(setItems); }, []);
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    setLoading(true);
+    void getMuseums().then((nextItems) => { if (active) setItems(nextItems); }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []));
 
   const countries = useMemo(() => getCountries(items), [items]);
   const cities = useMemo(() => Array.from(new Set(items.map((item) => item.city.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "zh-Hant")), [items]);
@@ -36,7 +42,7 @@ export default function LibraryScreen() {
   const clearFilters = () => { setQuery(""); setCountry(null); setCity(null); setYear(null); setPhotoFilter("all"); };
   const hasActiveFilters = Boolean(query.trim() || country || city || year || photoFilter !== "all");
 
-  if (!items.length) return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={colors.primary} /></ScreenContainer>;
+  if (loading) return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={colors.primary} /></ScreenContainer>;
 
   return <ScreenContainer><FlatList
     data={filtered}

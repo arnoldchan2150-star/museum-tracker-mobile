@@ -40,3 +40,5 @@
 - [x] 修復按登入後畫面仍停留在同一個畫面的問題（修正 server env 載入、OAuth callback、Session 儲存、AuthGate 訂閱與 `router.replace`；真機 provider E2E 仍需驗證）
 
 - [x] 深度排查與修復登入後仍卡在登入畫面的根本原因（修正 session cookie 跨域網域衝突、自動清除舊版父網域與無效 cookie、統一 HTTP/HTTPS SameSite 與 Localhost/Secure 策略，並完成回歸測試）
+
+- [x] 實作一鍵清除前端快取與重新授權流程，並提供裝置端操作指南（在登入閘門新增雙語「清除登入狀態並重新授權」按鈕，執行安全的 API 登出、Token 移除與事件廣播）

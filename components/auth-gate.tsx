@@ -8,6 +8,9 @@ import { startOAuthLogin } from "@/constants/oauth";
 import { LanguageSwitcher, useI18n } from "@/lib/i18n";
 import { useGuestPreview } from "@/lib/guest-preview-context";
 import { AppleSignInButton } from "@/components/apple-sign-in-button";
+import * as Api from "@/lib/_core/api";
+import * as Auth from "@/lib/_core/auth";
+import { notifyAuthChanged } from "@/lib/auth-events";
 
 export function AuthGate({ loading, error }: { loading: boolean; error: Error | null }) {
   const router = useRouter();
@@ -50,6 +53,24 @@ export function AuthGate({ loading, error }: { loading: boolean; error: Error | 
       <IconSymbol name="book.closed.fill" size={17} color={colors.primary} />
       <Text style={[styles.guestText, { color: colors.primary }]}>{t("common.guest")}</Text>
     </Pressable>
+    <Pressable
+      onPress={() => {
+        void (async () => {
+          try {
+            await Api.logout();
+          } catch {}
+          await Auth.removeSessionToken();
+          await Auth.clearUserInfo();
+          notifyAuthChanged();
+          if (Platform.OS !== "web") {
+            Alert.alert(t("auth.resetAuthDoneTitle"), t("auth.resetAuthDone"));
+          }
+        })();
+      }}
+      style={({ pressed }) => [styles.resetButton, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }, pressed && styles.pressed]}
+    >
+      <Text style={[styles.resetText, { color: colors.muted }]}>{t("auth.resetAuth")}</Text>
+    </Pressable>
     {error ? <Text style={[styles.error, { color: colors.error }]}>{t("auth.error")}</Text> : null}
     <Text style={[styles.note, { color: colors.muted }]}>{t("auth.note")}</Text>
   </View></ScreenContainer>;
@@ -72,6 +93,8 @@ const styles = StyleSheet.create({
   loginText: { color: "#FFFDF6", fontSize: 14, fontWeight: "900" },
   guestButton: { minHeight: 48, borderWidth: 1, borderRadius: 15, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 10 },
   guestText: { fontSize: 13, fontWeight: "900" },
+  resetButton: { minHeight: 44, borderWidth: 1, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 10 },
+  resetText: { fontSize: 12, fontWeight: "700" },
   error: { textAlign: "center", fontSize: 12, marginTop: 12 },
   note: { textAlign: "center", fontSize: 11, lineHeight: 17, marginTop: 18 },
   buildNotice: { textAlign: "center", fontSize: 11, lineHeight: 16, marginTop: 13 },

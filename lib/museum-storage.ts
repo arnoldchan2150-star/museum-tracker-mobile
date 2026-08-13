@@ -1,108 +1,56 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { MuseumItem, UserProfile } from "@/types/museum";
+import type { MuseumDraft, MuseumItem, MuseumPhoto, UserProfile } from "@/types/museum";
+import { normalizeMuseum, normalizePhotos } from "@/types/museum";
+export type { MuseumDraft } from "@/types/museum";
 
-export type MuseumDraft = Omit<MuseumItem, "id" | "createdAt"> & { photos?: string[] };
 const KEY = "wanderstamp.museums.v2";
 const PROFILE_KEY = "wanderstamp.profile.v1";
 
-const SEED: (MuseumItem & { photos?: string[] })[] = [
-  { 
-    id: "louvre", 
-    name: "羅浮宮博物館", 
-    city: "巴黎", 
-    country: "法國", 
-    visitedDate: "2025-04-18", 
-    note: "第一次看見蒙娜麗莎，金字塔建築非常宏偉。", 
-    rating: 5, 
-    createdAt: "2025-04-18T09:00:00.000Z",
-    photos: ["https://images.unsplash.com/photo-1499856871958-5b9627545d1a?w=600"]
-  },
-  { 
-    id: "moma", 
-    name: "現代藝術博物館", 
-    city: "紐約", 
-    country: "美國", 
-    visitedDate: "2024-11-03", 
-    note: "現代繪畫與星夜真跡令人驚嘆。", 
-    rating: 4, 
-    createdAt: "2024-11-03T09:00:00.000Z",
-    photos: []
-  },
-  { 
-    id: "npm", 
-    name: "國立故宮博物院", 
-    city: "台北", 
-    country: "台灣", 
-    visitedDate: "2024-08-16", 
-    note: "翠玉白菜雕工細緻。", 
-    rating: 5, 
-    createdAt: "2024-08-16T09:00:00.000Z",
-    photos: []
-  },
+const photo = (uri: string, description = ""): MuseumPhoto => ({ id: `seed-${uri.slice(-24)}`, uri, description, createdAt: "2025-04-18T09:00:00.000Z" });
+
+const SEED: MuseumItem[] = [
+  { id: "louvre", name: "羅浮宮博物館", city: "巴黎", country: "法國", visitedDate: "2025-04-18", note: "第一次看見蒙娜麗莎，金字塔建築非常宏偉。", rating: 5, createdAt: "2025-04-18T09:00:00.000Z", photos: [photo("https://images.unsplash.com/photo-1499856871958-5b9627545d1a?w=600", "抵達巴黎時拍下的城市與博物館周邊。")] },
+  { id: "moma", name: "現代藝術博物館", city: "紐約", country: "美國", visitedDate: "2024-11-03", note: "現代繪畫與星夜真跡令人驚嘆。", rating: 4, createdAt: "2024-11-03T09:00:00.000Z", photos: [] },
+  { id: "npm", name: "國立故宮博物院", city: "台北", country: "台灣", visitedDate: "2024-08-16", note: "翠玉白菜雕工細緻。", rating: 5, createdAt: "2024-08-16T09:00:00.000Z", photos: [] },
 ];
 
-const DEFAULT_PROFILE: UserProfile = {
-  name: "旅印收藏家",
-  title: "資深藝文與博物館漫遊者",
-  bio: "用雙腳與護照印章，紀錄世界各地的美術館與歷史博物館。",
-  avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400",
-};
+const DEFAULT_PROFILE: UserProfile = { name: "旅印收藏家", title: "資深藝文與博物館漫遊者", bio: "用雙腳與護照印章，紀錄世界各地的美術館與歷史博物館。", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400" };
 
-export async function getMuseums() { 
-  const raw = await AsyncStorage.getItem(KEY); 
-  if (!raw) { 
-    await saveMuseums(SEED); 
-    return SEED as MuseumItem[]; 
-  } 
-  try { 
-    return JSON.parse(raw) as MuseumItem[]; 
-  } catch { 
-    return SEED as MuseumItem[]; 
-  } 
+export type MuseumRecordDraft = Omit<MuseumItem, "id" | "createdAt">;
+
+export async function getMuseums(): Promise<MuseumItem[]> {
+  const raw = await AsyncStorage.getItem(KEY);
+  if (!raw) { await saveMuseums(SEED); return SEED; }
+  try { return (JSON.parse(raw) as MuseumItem[]).map(normalizeMuseum); } catch { return SEED; }
 }
 
-export async function saveMuseums(items: MuseumItem[]) { 
-  await AsyncStorage.setItem(KEY, JSON.stringify(items)); 
+export async function saveMuseums(items: MuseumItem[]): Promise<void> { await AsyncStorage.setItem(KEY, JSON.stringify(items.map(normalizeMuseum))); }
+
+export async function addMuseum(draft: MuseumDraft): Promise<MuseumItem> {
+  const item = normalizeMuseum({ ...draft, id: String(Date.now()), createdAt: new Date().toISOString(), photos: draft.photos ?? [] });
+  await saveMuseums([item, ...(await getMuseums())]);
+  return item;
 }
 
-export async function addMuseum(draft: MuseumDraft) { 
-  const item = { 
-    ...draft, 
-    id: String(Date.now()), 
-    createdAt: new Date().toISOString(),
-    photos: draft.photos || []
-  } as MuseumItem; 
-  await saveMuseums([item, ...(await getMuseums())]); 
-  return item; 
-}
-
-export async function updateMuseumPhotos(id: string, photos: string[]) {
+export async function updateMuseumPhotos(id: string, photos: MuseumPhoto[]): Promise<MuseumItem[]> {
   const items = await getMuseums();
-  const updated = items.map(m => m.id === id ? { ...m, photos } : m);
+  const updated = items.map((museum) => museum.id === id ? normalizeMuseum({ ...museum, photos }) : museum);
+  await saveMuseums(updated);
+  return updated;
+}
+
+export async function updateMuseumPhotoDescription(museumId: string, photoId: string, description: string): Promise<MuseumItem[]> {
+  const items = await getMuseums();
+  const updated = items.map((museum) => museum.id === museumId ? normalizeMuseum({ ...museum, photos: normalizePhotos(museum.photos).map((item) => item.id === photoId ? { ...item, description } : item) }) : museum);
   await saveMuseums(updated);
   return updated;
 }
 
 export async function getStoredProfile(): Promise<UserProfile> {
-  try {
-    const json = await AsyncStorage.getItem(PROFILE_KEY);
-    if (!json) {
-      await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(DEFAULT_PROFILE));
-      return DEFAULT_PROFILE;
-    }
-    return JSON.parse(json);
-  } catch {
-    return DEFAULT_PROFILE;
-  }
+  try { const json = await AsyncStorage.getItem(PROFILE_KEY); if (!json) { await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(DEFAULT_PROFILE)); return DEFAULT_PROFILE; } return JSON.parse(json) as UserProfile; } catch { return DEFAULT_PROFILE; }
 }
 
-export async function saveStoredProfile(profile: UserProfile): Promise<void> {
-  try {
-    await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
-  } catch (e) {
-    console.error("Failed to save profile", e);
-  }
-}
+export async function saveStoredProfile(profile: UserProfile): Promise<void> { try { await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch (error) { console.error("Failed to save profile", error); } }
 
 export function sortMuseums(items: MuseumItem[]) { return [...items].sort((a, b) => b.visitedDate.localeCompare(a.visitedDate)); }
 export function searchMuseums(items: MuseumItem[], query: string) { const q = query.trim().toLowerCase(); return q ? items.filter((m) => [m.name, m.city, m.country, m.note].some((v) => v.toLowerCase().includes(q))) : items; }
@@ -115,8 +63,8 @@ export function getStars(value = 0) { return "★".repeat(Math.max(0, Math.min(5
 export function getPalette(index: number) { const list = [{ background: "#DCEEF2", ink: "#0A5E75" }, { background: "#F4E7D0", ink: "#8A5A16" }, { background: "#E8E2F2", ink: "#69518A" }]; return list[index % list.length]; }
 export const demoMuseums = SEED;
 export const museumStorageKey = KEY;
-export function getDraft(): MuseumDraft { return { name: "", city: "", country: "", visitedDate: new Date().toISOString().slice(0, 10), note: "", rating: 0, photos: [] }; }
-export function isDraftValid(draft: MuseumDraft) { return Boolean(draft.name.trim() && draft.city.trim() && draft.country.trim()); }
+export function getDraft(): MuseumRecordDraft { return { name: "", city: "", country: "", visitedDate: new Date().toISOString().slice(0, 10), note: "", rating: 0, photos: [] }; }
+export function isDraftValid(draft: MuseumRecordDraft) { return Boolean(draft.name.trim() && draft.city.trim() && draft.country.trim()); }
 export function getMuseumSummary(museum: MuseumItem) { return `${museum.city} · ${museum.country}`; }
 export function getMuseumNote(museum: MuseumItem) { return museum.note || "尚未留下參觀筆記"; }
 export function getStorageStatus() { return "本機儲存 · 離線也能記錄"; }

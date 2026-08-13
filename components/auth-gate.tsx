@@ -18,7 +18,11 @@ export function AuthGate({ loading, error }: { loading: boolean; error: Error | 
   const { t } = useI18n();
   const { enterGuestPreview } = useGuestPreview();
   const isExpoGo = (Constants as { appOwnership?: string }).appOwnership === "expo";
-  const getLoginError = (value: unknown) => value instanceof Error && value.message === "OAUTH_CANCELLED" ? t("auth.oauthCancelled") : value instanceof Error ? value.message : t("auth.loginError");
+  const getLoginError = (value: unknown) => {
+    if (value instanceof Error && value.message === "OAUTH_CANCELLED") return t("auth.oauthCancelled");
+    if (value instanceof Error && value.message === "OAUTH_CONFIG_MISSING") return t("auth.oauthConfigError");
+    return value instanceof Error ? value.message : t("auth.loginError");
+  };
   const handleLogin = async () => {
     try {
       await startOAuthLogin();

@@ -44,3 +44,5 @@
 - [x] 實作一鍵清除前端快取與重新授權流程，並提供裝置端操作指南（在登入閘門新增雙語「清除登入狀態並重新授權」按鈕，執行安全的 API 登出、Token 移除與事件廣播）
 
 - [x] 新增獨立的註冊帳號功能與雙語介面支援（使用 OAuth `type=signUp` 註冊導向，共用既有帳戶隔離與 Session 建立；真實 provider E2E 仍需在 EAS／TestFlight 驗證）
+
+- [x] 徹底排查與修復 Gmail／Manus OAuth 與 Apple ID 登入後被導回登入畫面的根本原因（核對 callback token 交換、Cookie 持久化、Bearer token fallback 與 AuthGate 條件）

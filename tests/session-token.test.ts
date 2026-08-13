@@ -16,4 +16,13 @@ describe("server session token", () => {
       name: "Session Regression User",
     });
   });
+
+  it("accepts provider sessions when the identity provider omits a display name", async () => {
+    const token = await sdk.createSessionToken("provider-user-without-name");
+    await expect(sdk.verifySession(token)).resolves.toMatchObject({
+      openId: "provider-user-without-name",
+      appId: ENV.appId,
+      name: "",
+    });
+  });
 });

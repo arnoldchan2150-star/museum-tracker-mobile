@@ -10,12 +10,12 @@ const timestamp = bundleId.split(".").pop()?.replace(/^t/, "") ?? "";
 const schemeFromBundleId = `manus${timestamp}`;
 
 const env = {
-  portal: process.env.EXPO_PUBLIC_OAUTH_PORTAL_URL ?? "",
-  server: process.env.EXPO_PUBLIC_OAUTH_SERVER_URL ?? "",
-  appId: process.env.EXPO_PUBLIC_APP_ID ?? "",
-  ownerId: process.env.EXPO_PUBLIC_OWNER_OPEN_ID ?? "",
-  ownerName: process.env.EXPO_PUBLIC_OWNER_NAME ?? "",
-  apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL ?? "",
+  portal: process.env.EXPO_PUBLIC_OAUTH_PORTAL_URL || process.env.VITE_OAUTH_PORTAL_URL || "",
+  server: process.env.EXPO_PUBLIC_OAUTH_SERVER_URL || process.env.OAUTH_SERVER_URL || "",
+  appId: process.env.EXPO_PUBLIC_APP_ID || process.env.VITE_APP_ID || "",
+  ownerId: process.env.EXPO_PUBLIC_OWNER_OPEN_ID || process.env.OWNER_OPEN_ID || "",
+  ownerName: process.env.EXPO_PUBLIC_OWNER_NAME || process.env.OWNER_NAME || "",
+  apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL || process.env.API_BASE_URL || "",
   deepLinkScheme: schemeFromBundleId,
 };
 
@@ -74,6 +74,9 @@ export const getRedirectUri = () => {
 };
 
 export const getLoginUrl = (type: "signIn" | "signUp" = "signIn") => {
+  if (!OAUTH_PORTAL_URL || !APP_ID) {
+    throw new Error("OAUTH_CONFIG_MISSING");
+  }
   const redirectUri = getRedirectUri();
   return buildOAuthUrl({ portalUrl: OAUTH_PORTAL_URL, appId: APP_ID, redirectUri, type });
 };

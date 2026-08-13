@@ -36,6 +36,7 @@ export default function OAuthCallback() {
         if (params.sessionToken) {
           console.log("[OAuth] Session token found in params (web callback)");
           await Auth.setSessionToken(params.sessionToken);
+          await Api.establishSession(params.sessionToken);
 
           const persistedUser = await persistEncodedOAuthUser(params.user);
           if (!persistedUser) await persistOAuthUser(await Api.getMe());
@@ -137,6 +138,7 @@ export default function OAuthCallback() {
         if (sessionToken) {
           console.log("[OAuth] Session token found in URL, storing...");
           await Auth.setSessionToken(sessionToken);
+          await Api.establishSession(sessionToken);
           const persistedUser = await persistEncodedOAuthUser(encodedUser);
           if (!persistedUser) await persistOAuthUser(await Api.getMe());
           console.log("[OAuth] Session token and user info stored successfully");

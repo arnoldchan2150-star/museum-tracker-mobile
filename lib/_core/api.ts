@@ -29,7 +29,17 @@ export async function apiCall<T>(endpoint: string, options: RequestInit = {}): P
       console.log("[API] Authorization header added");
     }
   } else {
-    console.log("[API] apiCall:", { endpoint, platform: "web", method: options.method || "GET" });
+    const webSessionToken = await Auth.getSessionToken();
+    if (webSessionToken) {
+      headers["Authorization"] = `Bearer ${webSessionToken}`;
+      console.log("[API] Web bootstrap Authorization header added");
+    }
+    console.log("[API] apiCall:", {
+      endpoint,
+      platform: "web",
+      method: options.method || "GET",
+      hasBootstrapToken: !!webSessionToken,
+    });
   }
 
   const baseUrl = getApiBaseUrl();

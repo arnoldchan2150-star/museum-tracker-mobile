@@ -97,13 +97,16 @@ export function registerOAuthRoutes(app: Express) {
       res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
       clearLegacySessionCookie(req, res);
 
-      // Redirect to the frontend URL (Expo web on port 8081)
-      // The new cookie is host-only and is sent with API requests using credentials: include.
+      // Redirect to the callback route with the token as a short-lived bootstrap value.
+      // The API cookie remains the primary Web auth mechanism; the callback token is a
+      // reliable fallback when a browser blocks a cross-origin cookie during preview.
       const frontendUrl =
         process.env.EXPO_WEB_PREVIEW_URL ||
         process.env.EXPO_PACKAGER_PROXY_URL ||
         "http://localhost:8081";
-      res.redirect(302, frontendUrl);
+      const callbackUrl = new URL("/oauth/callback", frontendUrl);
+      callbackUrl.searchParams.set("sessionToken", sessionToken);
+      res.redirect(302, callbackUrl.toString());
     } catch (error) {
       console.error("[OAuth] Callback failed", error);
       res.status(500).json({ error: "OAuth callback failed" });

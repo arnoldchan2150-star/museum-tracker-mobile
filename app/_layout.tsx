@@ -19,8 +19,6 @@ import type { EdgeInsets, Metrics, Rect } from "react-native-safe-area-context";
 import { trpc, createTRPCClient } from "@/lib/trpc";
 import { initManusRuntime, subscribeSafeAreaInsets } from "@/lib/_core/manus-runtime";
 import { retryPendingAutoSync } from "@/lib/auto-sync";
-import { I18nProvider } from "@/lib/i18n";
-import { GuestPreviewProvider } from "@/lib/guest-preview-context";
 
 const DEFAULT_WEB_INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 const DEFAULT_WEB_FRAME: Rect = { x: 0, y: 0, width: 0, height: 0 };
@@ -116,28 +114,20 @@ export default function RootLayout() {
   if (shouldOverrideSafeArea) {
     return (
       <ThemeProvider>
-        <I18nProvider>
-          <GuestPreviewProvider>
-            <SafeAreaProvider initialMetrics={providerInitialMetrics}>
+        <SafeAreaProvider initialMetrics={providerInitialMetrics}>
           <SafeAreaFrameContext.Provider value={frame}>
             <SafeAreaInsetsContext.Provider value={insets}>
               {content}
             </SafeAreaInsetsContext.Provider>
           </SafeAreaFrameContext.Provider>
-            </SafeAreaProvider>
-          </GuestPreviewProvider>
-        </I18nProvider>
+        </SafeAreaProvider>
       </ThemeProvider>
     );
   }
 
   return (
     <ThemeProvider>
-      <I18nProvider>
-        <GuestPreviewProvider>
-          <SafeAreaProvider initialMetrics={providerInitialMetrics}>{content}</SafeAreaProvider>
-        </GuestPreviewProvider>
-      </I18nProvider>
+      <SafeAreaProvider initialMetrics={providerInitialMetrics}>{content}</SafeAreaProvider>
     </ThemeProvider>
   );
 }

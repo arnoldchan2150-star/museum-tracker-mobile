@@ -1,7 +1,5 @@
-import * as WebBrowser from "expo-web-browser";
-import { makeRedirectUri } from "expo-auth-session";
+import * as Linking from "expo-linking";
 import * as ReactNative from "react-native";
-import { buildOAuthUrl } from "@/lib/oauth-url";
 
 // Extract scheme from bundle ID (last segment timestamp, prefixed with "manus")
 // e.g., "space.manus.my.app.t20240115103045" -> "manus20240115103045"
@@ -10,12 +8,12 @@ const timestamp = bundleId.split(".").pop()?.replace(/^t/, "") ?? "";
 const schemeFromBundleId = `manus${timestamp}`;
 
 const env = {
-  portal: process.env.EXPO_PUBLIC_OAUTH_PORTAL_URL || process.env.VITE_OAUTH_PORTAL_URL || "",
-  server: process.env.EXPO_PUBLIC_OAUTH_SERVER_URL || process.env.OAUTH_SERVER_URL || "",
-  appId: process.env.EXPO_PUBLIC_APP_ID || process.env.VITE_APP_ID || "",
-  ownerId: process.env.EXPO_PUBLIC_OWNER_OPEN_ID || process.env.OWNER_OPEN_ID || "",
-  ownerName: process.env.EXPO_PUBLIC_OWNER_NAME || process.env.OWNER_NAME || "",
-  apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL || process.env.API_BASE_URL || "",
+  portal: process.env.EXPO_PUBLIC_OAUTH_PORTAL_URL ?? "",
+  server: process.env.EXPO_PUBLIC_OAUTH_SERVER_URL ?? "",
+  appId: process.env.EXPO_PUBLIC_APP_ID ?? "",
+  ownerId: process.env.EXPO_PUBLIC_OWNER_OPEN_ID ?? "",
+  ownerName: process.env.EXPO_PUBLIC_OWNER_NAME ?? "",
+  apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL ?? "",
   deepLinkScheme: schemeFromBundleId,
 };
 
@@ -54,6 +52,17 @@ export function getApiBaseUrl(): string {
 export const SESSION_TOKEN_KEY = "app_session_token";
 export const USER_INFO_KEY = "manus-runtime-user-info";
 
+const encodeState = (value: string) => {
+  if (typeof globalThis.btoa === "function") {
+    return globalThis.btoa(value);
+  }
+  const BufferImpl = (globalThis as Record<string, any>).Buffer;
+  if (BufferImpl) {
+    return BufferImpl.from(value, "utf-8").toString("base64");
+  }
+  return value;
+};
+
 /**
  * Get the redirect URI for OAuth callback.
  * - Web: uses API server callback endpoint
@@ -62,44 +71,25 @@ export const USER_INFO_KEY = "manus-runtime-user-info";
 export const getRedirectUri = () => {
   if (ReactNative.Platform.OS === "web") {
     return `${getApiBaseUrl()}/api/oauth/callback`;
+  } else {
+    return Linking.createURL("/oauth/callback", {
+      scheme: env.deepLinkScheme,
+    });
   }
-
-  // AuthSession uses the app config scheme in a Development Build / production app,
-  // and automatically falls back to Expo Go's exp:// URL while running in Expo Go.
-  return makeRedirectUri({
-    native: `${env.deepLinkScheme}://oauth/callback`,
-    scheme: env.deepLinkScheme,
-    path: "oauth/callback",
-  });
 };
 
-export const getLoginUrl = (type: "signIn" | "signUp" = "signIn") => {
-  if (!OAUTH_PORTAL_URL || !APP_ID) {
-    throw new Error("OAUTH_CONFIG_MISSING");
-  }
+export const getLoginUrl = () => {
   const redirectUri = getRedirectUri();
-  return buildOAuthUrl({ portalUrl: OAUTH_PORTAL_URL, appId: APP_ID, redirectUri, type });
+  const state = encodeState(redirectUri);
+
+  const url = new URL(`${OAUTH_PORTAL_URL}/app-auth`);
+  url.searchParams.set("appId", APP_ID);
+  url.searchParams.set("redirectUri", redirectUri);
+  url.searchParams.set("state", state);
+  url.searchParams.set("type", "signIn");
+
+  return url.toString();
 };
-
-export async function startOAuthSignUp(): Promise<string | null> {
-  const signUpUrl = getLoginUrl("signUp");
-
-  if (ReactNative.Platform.OS === "web") {
-    if (typeof window !== "undefined") window.location.href = signUpUrl;
-    return null;
-  }
-
-  const redirectUri = getRedirectUri();
-  const result = await WebBrowser.openAuthSessionAsync(signUpUrl, redirectUri);
-  if (result.type === "success" && result.url) {
-    const { completeOAuthCallback } = await import("@/lib/oauth-session");
-    await completeOAuthCallback(result.url);
-  } else if (result.type === "cancel" || result.type === "dismiss") {
-    console.info("[OAuth] Sign up browser session was cancelled");
-    throw new Error("OAUTH_CANCELLED");
-  }
-  return result.type === "success" ? result.url ?? null : null;
-}
 
 /**
  * Start OAuth login flow.
@@ -115,18 +105,27 @@ export async function startOAuthLogin(): Promise<string | null> {
   const loginUrl = getLoginUrl();
 
   if (ReactNative.Platform.OS === "web") {
-    if (typeof window !== "undefined") window.location.href = loginUrl;
+    // On web, just redirect
+    if (typeof window !== "undefined") {
+      window.location.href = loginUrl;
+    }
     return null;
   }
 
-  const redirectUri = getRedirectUri();
-  const result = await WebBrowser.openAuthSessionAsync(loginUrl, redirectUri);
-  if (result.type === "success" && result.url) {
-    const { completeOAuthCallback } = await import("@/lib/oauth-session");
-    await completeOAuthCallback(result.url);
-  } else if (result.type === "cancel" || result.type === "dismiss") {
-    console.info("[OAuth] Login browser session was cancelled");
-    throw new Error("OAUTH_CANCELLED");
+  const supported = await Linking.canOpenURL(loginUrl);
+  if (!supported) {
+    console.warn("[OAuth] Cannot open login URL: URL scheme not supported");
+    // 可考虑抛出错误或返回错误状态，让调用方处理
+    return null;
   }
-  return result.type === "success" ? result.url ?? null : null;
+
+  try {
+    await Linking.openURL(loginUrl);
+  } catch (error) {
+    console.error("[OAuth] Failed to open login URL:", error);
+    // 可考虑抛出错误让调用方处理
+  }
+
+  // The OAuth callback will reopen the app via deep link.
+  return null;
 }

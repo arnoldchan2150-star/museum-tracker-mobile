@@ -2,21 +2,15 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
-import { GuestBanner } from "@/components/guest-banner";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
 import { filterMuseums, formatVisitedDate, getCountries, getInitials, getYears, searchMuseums, sortMuseums, getMuseums } from "@/lib/museum-storage";
-import { getGuestMuseums } from "@/lib/guest-preview";
-import { useGuestPreview } from "@/lib/guest-preview-context";
-import { useI18n } from "@/lib/i18n";
 import { getMuseumMedia, type MuseumItem } from "@/types/museum";
 
 type PhotoFilter = "all" | "with" | "without";
 
 export default function LibraryScreen() {
   const colors = useColors();
-  const { t } = useI18n();
-  const { isGuestPreview } = useGuestPreview();
   const [items, setItems] = useState<MuseumItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
@@ -28,9 +22,9 @@ export default function LibraryScreen() {
   useFocusEffect(useCallback(() => {
     let active = true;
     setLoading(true);
-    void (isGuestPreview ? Promise.resolve(getGuestMuseums()) : getMuseums()).then((nextItems) => { if (active) setItems(nextItems); }).finally(() => { if (active) setLoading(false); });
+    void getMuseums().then((nextItems) => { if (active) setItems(nextItems); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [isGuestPreview]));
+  }, []));
 
   const countries = useMemo(() => getCountries(items), [items]);
   const cities = useMemo(() => Array.from(new Set(items.map((item) => item.city.trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "zh-Hant")), [items]);
@@ -55,24 +49,42 @@ export default function LibraryScreen() {
     keyExtractor={(item) => item.id}
     contentContainerStyle={styles.content}
     ListHeaderComponent={<View>
-      {isGuestPreview ? <GuestBanner /> : null}
-      <Text style={[styles.kicker, { color: colors.primary }]}>{t("library.kicker")}</Text>
-      <Text style={[styles.title, { color: colors.foreground }]}>{t("library.title")}</Text>
-      <Text style={[styles.subtitle, { color: colors.muted }]}>{t("library.subtitle")}</Text>
-      <View style={[styles.search, { backgroundColor: colors.surface, borderColor: colors.border }]}><IconSymbol name="magnifyingglass" size={20} color={colors.muted} /><TextInput value={query} onChangeText={setQuery} placeholder={t("library.search")} placeholderTextColor={colors.muted} style={[styles.searchInput, { color: colors.foreground }]} returnKeyType="search" />{query ? <Pressable accessibilityLabel={t("common.delete")} onPress={() => setQuery("")} style={({ pressed }) => [styles.searchClear, pressed && styles.pressed]}><IconSymbol name="xmark" size={19} color={colors.muted} /></Pressable> : null}</View>
-      <FilterSection title={t("library.country")} colors={colors} onClear={() => setCountry(null)} showClear={Boolean(country)} clearLabel={t("library.clear")}><Chip label={t("library.all")} selected={!country} onPress={() => setCountry(null)} colors={colors} />{countries.map((item) => <Chip key={item} label={item} selected={country === item} onPress={() => setCountry(item)} colors={colors} />)}</FilterSection>
-      <FilterSection title={t("library.city")} colors={colors} onClear={() => setCity(null)} showClear={Boolean(city)} clearLabel={t("library.clear")}><Chip label={t("library.all")} selected={!city} onPress={() => setCity(null)} colors={colors} />{cities.map((item) => <Chip key={item} label={item} selected={city === item} onPress={() => setCity(item)} colors={colors} />)}</FilterSection>
-      <FilterSection title={t("library.year")} colors={colors} onClear={() => setYear(null)} showClear={Boolean(year)} clearLabel={t("library.clear")}><Chip label={t("library.all")} selected={!year} onPress={() => setYear(null)} colors={colors} />{years.map((item) => <Chip key={item} label={item} selected={year === item} onPress={() => setYear(item)} colors={colors} />)}</FilterSection>
-      <FilterSection title={t("library.photos")} colors={colors} onClear={() => setPhotoFilter("all")} showClear={photoFilter !== "all"} clearLabel={t("library.clear")}><Chip label={t("library.all")} selected={photoFilter === "all"} onPress={() => setPhotoFilter("all")} colors={colors} /><Chip label={t("library.withPhotos")} selected={photoFilter === "with"} onPress={() => setPhotoFilter("with")} colors={colors} /><Chip label={t("library.withoutPhotos")} selected={photoFilter === "without"} onPress={() => setPhotoFilter("without")} colors={colors} /></FilterSection>
-      <View style={styles.resultRow}><View><Text style={[styles.resultCount, { color: colors.muted }]}>{filtered.length} / {items.length} {t("library.results")}</Text><Text style={[styles.resultHint, { color: colors.muted }]}>{hasActiveFilters ? t("library.applied") : t("library.allMuseums")}</Text></View><View style={styles.resultActions}>{hasActiveFilters ? <Pressable onPress={clearFilters} style={({ pressed }) => [styles.clearAll, pressed && styles.pressed]}><Text style={{ color: colors.primary, fontSize: 12, fontWeight: "800" }}>{t("library.clear")}</Text></Pressable> : null}{!isGuestPreview ? <Pressable onPress={() => router.push("/add")} style={({ pressed }) => [styles.quickAdd, pressed && styles.pressed]}><IconSymbol name="plus" size={16} color={colors.primary} /><Text style={{ color: colors.primary, fontSize: 13, fontWeight: "800" }}>{t("library.add")}</Text></Pressable> : null}</View></View>
+      <Text style={[styles.kicker, { color: colors.primary }]}>THE COLLECTION</Text>
+      <Text style={[styles.title, { color: colors.foreground }]}>博物館清單</Text>
+      <Text style={[styles.subtitle, { color: colors.muted }]}>把每一次看展，整理成你的文化地圖。</Text>
+      <View style={[styles.search, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <IconSymbol name="magnifyingglass" size={20} color={colors.muted} />
+        <TextInput value={query} onChangeText={setQuery} placeholder="搜尋博物館名稱、城市或國家" placeholderTextColor={colors.muted} style={[styles.searchInput, { color: colors.foreground }]} returnKeyType="search" />
+        {query ? <Pressable accessibilityLabel="清除搜尋" onPress={() => setQuery("")} style={({ pressed }) => [styles.searchClear, pressed && styles.pressed]}><IconSymbol name="xmark" size={19} color={colors.muted} /></Pressable> : null}
+      </View>
+
+      <FilterSection title="國家" colors={colors} onClear={() => setCountry(null)} showClear={Boolean(country)}>
+        <Chip label="全部" selected={!country} onPress={() => setCountry(null)} colors={colors} />
+        {countries.map((item) => <Chip key={item} label={item} selected={country === item} onPress={() => setCountry(item)} colors={colors} />)}
+      </FilterSection>
+      <FilterSection title="城市" colors={colors} onClear={() => setCity(null)} showClear={Boolean(city)}>
+        <Chip label="全部" selected={!city} onPress={() => setCity(null)} colors={colors} />
+        {cities.map((item) => <Chip key={item} label={item} selected={city === item} onPress={() => setCity(item)} colors={colors} />)}
+      </FilterSection>
+      <FilterSection title="年份" colors={colors} onClear={() => setYear(null)} showClear={Boolean(year)}>
+        <Chip label="全部" selected={!year} onPress={() => setYear(null)} colors={colors} />
+        {years.map((item) => <Chip key={item} label={item} selected={year === item} onPress={() => setYear(item)} colors={colors} />)}
+      </FilterSection>
+      <FilterSection title="照片" colors={colors} onClear={() => setPhotoFilter("all")} showClear={photoFilter !== "all"}>
+        <Chip label="全部" selected={photoFilter === "all"} onPress={() => setPhotoFilter("all")} colors={colors} />
+        <Chip label="有照片" selected={photoFilter === "with"} onPress={() => setPhotoFilter("with")} colors={colors} />
+        <Chip label="沒有照片" selected={photoFilter === "without"} onPress={() => setPhotoFilter("without")} colors={colors} />
+      </FilterSection>
+
+      <View style={styles.resultRow}><View><Text style={[styles.resultCount, { color: colors.muted }]}>{filtered.length} / {items.length} 筆足跡</Text><Text style={[styles.resultHint, { color: colors.muted }]}>{hasActiveFilters ? "已套用篩選條件" : "顯示全部博物館"}</Text></View><View style={styles.resultActions}>{hasActiveFilters ? <Pressable onPress={clearFilters} style={({ pressed }) => [styles.clearAll, pressed && styles.pressed]}><Text style={{ color: colors.primary, fontSize: 12, fontWeight: "800" }}>清除全部</Text></Pressable> : null}<Pressable onPress={() => router.push("/add")} style={({ pressed }) => [styles.quickAdd, pressed && styles.pressed]}><IconSymbol name="plus" size={16} color={colors.primary} /><Text style={{ color: colors.primary, fontSize: 13, fontWeight: "800" }}>新增</Text></Pressable></View></View>
     </View>}
-    ListEmptyComponent={<View style={styles.empty}><View style={[styles.emptyIcon, { backgroundColor: colors.surface }]}><IconSymbol name="magnifyingglass" size={23} color={colors.muted} /></View><Text style={[styles.emptyTitle, { color: colors.foreground }]}>{t("library.noResults")}</Text><Text style={[styles.emptyCopy, { color: colors.muted }]}>{t("library.noResultsCopy")}</Text><Pressable onPress={clearFilters} style={({ pressed }) => [styles.emptyButton, { borderColor: colors.primary }, pressed && styles.pressed]}><Text style={[styles.emptyButtonText, { color: colors.primary }]}>{t("library.clearFilters")}</Text></Pressable></View>}
-    renderItem={({ item, index }) => <Pressable onPress={() => router.push({ pathname: "/museum/[id]", params: { id: item.id } })} style={({ pressed }) => [styles.card, { backgroundColor: colors.surface, borderColor: colors.border }, pressed && styles.pressed]}><View style={[styles.avatar, { backgroundColor: index % 2 ? "#F4E7D0" : "#DCEEF2" }]}><Text style={{ color: index % 2 ? "#8A5A16" : "#0A5E75", fontSize: 20, fontWeight: "800" }}>{getInitials(item.name)}</Text></View><View style={styles.cardCopy}><Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>{item.name}</Text><Text style={[styles.meta, { color: colors.muted }]}>{item.city} · {item.country}</Text><View style={styles.cardFooter}><Text style={[styles.date, { color: colors.muted }]}>{formatVisitedDate(item.visitedDate)}</Text>{getMuseumMedia(item).some((media) => media.type === "photo") ? <View style={styles.photoBadge}><IconSymbol name="photo" size={12} color={colors.primary} /><Text style={[styles.photoBadgeText, { color: colors.primary }]}>{t("library.hasPhoto")}</Text></View> : null}</View></View><IconSymbol name="chevron.right" size={20} color={colors.muted} /></Pressable>}
+    ListEmptyComponent={<View style={styles.empty}><View style={[styles.emptyIcon, { backgroundColor: colors.surface }]}><IconSymbol name="magnifyingglass" size={23} color={colors.muted} /></View><Text style={[styles.emptyTitle, { color: colors.foreground }]}>找不到這組足跡</Text><Text style={[styles.emptyCopy, { color: colors.muted }]}>試試其他關鍵字、城市或照片條件，或清除全部篩選。</Text><Pressable onPress={clearFilters} style={({ pressed }) => [styles.emptyButton, { borderColor: colors.primary }, pressed && styles.pressed]}><Text style={[styles.emptyButtonText, { color: colors.primary }]}>清除篩選</Text></Pressable></View>}
+    renderItem={({ item, index }) => <Pressable onPress={() => router.push({ pathname: "/museum/[id]", params: { id: item.id } })} style={({ pressed }) => [styles.card, { backgroundColor: colors.surface, borderColor: colors.border }, pressed && styles.pressed]}><View style={[styles.avatar, { backgroundColor: index % 2 ? "#F4E7D0" : "#DCEEF2" }]}><Text style={{ color: index % 2 ? "#8A5A16" : "#0A5E75", fontSize: 20, fontWeight: "800" }}>{getInitials(item.name)}</Text></View><View style={styles.cardCopy}><Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>{item.name}</Text><Text style={[styles.meta, { color: colors.muted }]}>{item.city} · {item.country}</Text><View style={styles.cardFooter}><Text style={[styles.date, { color: colors.muted }]}>{formatVisitedDate(item.visitedDate)}</Text>{getMuseumMedia(item).some((media) => media.type === "photo") ? <View style={styles.photoBadge}><IconSymbol name="photo" size={12} color={colors.primary} /><Text style={[styles.photoBadgeText, { color: colors.primary }]}>有照片</Text></View> : null}</View></View><IconSymbol name="chevron.right" size={20} color={colors.muted} /></Pressable>}
   /></ScreenContainer>;
 }
 
-function FilterSection({ title, colors, onClear, showClear, clearLabel, children }: { title: string; colors: ReturnType<typeof useColors>; onClear: () => void; showClear: boolean; clearLabel: string; children: ReactNode }) {
-  return <View><View style={styles.filterLabel}><Text style={[styles.filterTitle, { color: colors.foreground }]}>{title}</Text>{showClear ? <Pressable onPress={onClear} style={({ pressed }) => [styles.clear, pressed && styles.pressed]}><Text style={{ color: colors.primary, fontSize: 12, fontWeight: "700" }}>{clearLabel}</Text></Pressable> : null}</View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>{children}</ScrollView></View>;
+function FilterSection({ title, colors, onClear, showClear, children }: { title: string; colors: ReturnType<typeof useColors>; onClear: () => void; showClear: boolean; children: ReactNode }) {
+  return <View><View style={styles.filterLabel}><Text style={[styles.filterTitle, { color: colors.foreground }]}>{title}</Text>{showClear ? <Pressable onPress={onClear} style={({ pressed }) => [styles.clear, pressed && styles.pressed]}><Text style={{ color: colors.primary, fontSize: 12, fontWeight: "700" }}>清除</Text></Pressable> : null}</View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>{children}</ScrollView></View>;
 }
 
 function Chip({ label, selected, onPress, colors }: { label: string; selected: boolean; onPress: () => void; colors: ReturnType<typeof useColors> }) {

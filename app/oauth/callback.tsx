@@ -5,8 +5,6 @@ import * as Linking from "expo-linking";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Text } from "react-native";
-import { notifyAuthChanged } from "@/lib/auth-events";
-import { persistEncodedOAuthUser, persistOAuthUser } from "@/lib/oauth-session";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function OAuthCallback() {
@@ -36,16 +34,36 @@ export default function OAuthCallback() {
         if (params.sessionToken) {
           console.log("[OAuth] Session token found in params (web callback)");
           await Auth.setSessionToken(params.sessionToken);
-          await Api.establishSession(params.sessionToken);
 
-          const persistedUser = await persistEncodedOAuthUser(params.user);
-          if (!persistedUser) await persistOAuthUser(await Api.getMe());
-          console.log("[OAuth] Callback user info persisted");
+          // Decode and store user info if available
+          if (params.user) {
+            try {
+              // Use atob for base64 decoding (works in both web and React Native)
+              const userJson =
+                typeof atob !== "undefined"
+                  ? atob(params.user)
+                  : Buffer.from(params.user, "base64").toString("utf-8");
+              const userData = JSON.parse(userJson);
+              const userInfo: Auth.User = {
+                id: userData.id,
+                openId: userData.openId,
+                name: userData.name,
+                email: userData.email,
+                loginMethod: userData.loginMethod,
+                lastSignedIn: new Date(userData.lastSignedIn || Date.now()),
+              };
+              await Auth.setUserInfo(userInfo);
+              console.log("[OAuth] User info stored:", userInfo);
+            } catch (err) {
+              console.error("[OAuth] Failed to parse user data:", err);
+            }
+          }
 
-          notifyAuthChanged();
           setStatus("success");
           console.log("[OAuth] Web authentication successful, redirecting to home...");
-          router.replace("/(tabs)");
+          setTimeout(() => {
+            router.replace("/(tabs)");
+          }, 1000);
           return;
         }
 
@@ -86,7 +104,6 @@ export default function OAuthCallback() {
         let code: string | null = null;
         let state: string | null = null;
         let sessionToken: string | null = null;
-        let encodedUser: string | null = params.user ?? null;
 
         // Try to get from params first
         if (params.code && params.state) {
@@ -101,7 +118,6 @@ export default function OAuthCallback() {
             code = urlObj.searchParams.get("code");
             state = urlObj.searchParams.get("state");
             sessionToken = urlObj.searchParams.get("sessionToken");
-            encodedUser = urlObj.searchParams.get("user");
             console.log("[OAuth] Extracted from URL:", {
               code: code?.substring(0, 20) + "...",
               state: state?.substring(0, 20) + "...",
@@ -110,14 +126,13 @@ export default function OAuthCallback() {
           } catch (e) {
             console.log("[OAuth] Failed to parse as full URL, trying regex:", e);
             // Try parsing as relative URL with query params
-            const match = url.match(/[?&](code|state|sessionToken|user)=([^&]+)/g);
+            const match = url.match(/[?&](code|state|sessionToken)=([^&]+)/g);
             if (match) {
               match.forEach((param) => {
                 const [key, value] = param.substring(1).split("=");
                 if (key === "code") code = decodeURIComponent(value);
                 if (key === "state") state = decodeURIComponent(value);
                 if (key === "sessionToken") sessionToken = decodeURIComponent(value);
-                if (key === "user") encodedUser = decodeURIComponent(value);
               });
               console.log("[OAuth] Extracted from regex:", {
                 code: code?.substring(0, 20) + "...",
@@ -138,15 +153,14 @@ export default function OAuthCallback() {
         if (sessionToken) {
           console.log("[OAuth] Session token found in URL, storing...");
           await Auth.setSessionToken(sessionToken);
-          await Api.establishSession(sessionToken);
-          const persistedUser = await persistEncodedOAuthUser(encodedUser);
-          if (!persistedUser) await persistOAuthUser(await Api.getMe());
-          console.log("[OAuth] Session token and user info stored successfully");
-          notifyAuthChanged();
-          // User info is normally in the callback response; missing payloads are resolved above.
+          console.log("[OAuth] Session token stored successfully");
+          // User info is already in the OAuth callback response
+          // No need to fetch from API
           setStatus("success");
           console.log("[OAuth] Redirecting to home...");
-          router.replace("/(tabs)");
+          setTimeout(() => {
+            router.replace("/(tabs)");
+          }, 1000);
           return;
         }
 
@@ -195,12 +209,14 @@ export default function OAuthCallback() {
             console.log("[OAuth] No user data in result");
           }
 
-          notifyAuthChanged();
           setStatus("success");
           console.log("[OAuth] Authentication successful, redirecting to home...");
 
-          console.log("[OAuth] Executing redirect...");
-          router.replace("/(tabs)");
+          // Redirect to home after a short delay
+          setTimeout(() => {
+            console.log("[OAuth] Executing redirect...");
+            router.replace("/(tabs)");
+          }, 1000);
         } else {
           console.error("[OAuth] No session token in result:", result);
           setStatus("error");

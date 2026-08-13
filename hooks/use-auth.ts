@@ -20,7 +20,7 @@ export function useAuth(options?: UseAuthOptions) {
       setLoading(true);
       setError(null);
 
-      // Web platform: use cookie-based auth, fetch user from API
+      // Web platform: use the server-verified HTTP-only cookie as the source of truth.
       if (Platform.OS === "web") {
         console.log("[useAuth] Web platform: fetching user from API...");
         const apiUser = await Api.getMe();
@@ -36,7 +36,6 @@ export function useAuth(options?: UseAuthOptions) {
             lastSignedIn: new Date(apiUser.lastSignedIn),
           };
           setUser(userInfo);
-          // Cache user info in localStorage for faster subsequent loads
           await Auth.setUserInfo(userInfo);
           console.log("[useAuth] Web user set from API:", userInfo);
         } else {

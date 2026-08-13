@@ -2,7 +2,7 @@ import { COOKIE_NAME, ONE_YEAR_MS } from "../../shared/const.js";
 import type { Express, Request, Response } from "express";
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import { getUserByOpenId, upsertUser } from "../db";
-import { getSessionCookieOptions } from "./cookies";
+import { getLegacySessionCookieOptions, getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
 import { getAppleAudiences } from "./apple-audience";
 
@@ -67,6 +67,13 @@ function buildUserResponse(
   };
 }
 
+function clearLegacySessionCookie(req: Request, res: Response) {
+  const legacyOptions = getLegacySessionCookieOptions(req);
+  if (legacyOptions) {
+    res.clearCookie(COOKIE_NAME, legacyOptions);
+  }
+}
+
 export function registerOAuthRoutes(app: Express) {
   app.get("/api/oauth/callback", async (req: Request, res: Response) => {
     const code = getQueryParam(req, "code");
@@ -88,9 +95,10 @@ export function registerOAuthRoutes(app: Express) {
 
       const cookieOptions = getSessionCookieOptions(req);
       res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+      clearLegacySessionCookie(req, res);
 
       // Redirect to the frontend URL (Expo web on port 8081)
-      // Cookie is set with parent domain so it works across both 3000 and 8081 subdomains
+      // The new cookie is host-only and is sent with API requests using credentials: include.
       const frontendUrl =
         process.env.EXPO_WEB_PREVIEW_URL ||
         process.env.EXPO_PACKAGER_PROXY_URL ||
@@ -163,6 +171,7 @@ export function registerOAuthRoutes(app: Express) {
       });
       const cookieOptions = getSessionCookieOptions(req);
       res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+      clearLegacySessionCookie(req, res);
       res.json({ app_session_id: sessionToken, user: buildUserResponse(user) });
     } catch (error) {
       console.error("[OAuth] Apple sign-in verification failed", error);
@@ -191,6 +200,7 @@ export function registerOAuthRoutes(app: Express) {
 
       const cookieOptions = getSessionCookieOptions(req);
       res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+      clearLegacySessionCookie(req, res);
 
       res.json({
         app_session_id: sessionToken,
@@ -204,7 +214,8 @@ export function registerOAuthRoutes(app: Express) {
 
   app.post("/api/auth/logout", (req: Request, res: Response) => {
     const cookieOptions = getSessionCookieOptions(req);
-    res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+    res.clearCookie(COOKIE_NAME, cookieOptions);
+    clearLegacySessionCookie(req, res);
     res.json({ success: true });
   });
 
@@ -215,6 +226,9 @@ export function registerOAuthRoutes(app: Express) {
       res.json({ user: buildUserResponse(user) });
     } catch (error) {
       console.error("[Auth] /api/auth/me failed:", error);
+      const cookieOptions = getSessionCookieOptions(req);
+      res.clearCookie(COOKIE_NAME, cookieOptions);
+      clearLegacySessionCookie(req, res);
       res.status(401).json({ error: "Not authenticated", user: null });
     }
   });

@@ -8,8 +8,9 @@ type TranslationKey = keyof typeof translations["zh-Hant"];
 
 const translations = {
   "zh-Hant": {
-    "common.login": "登入／建立我的帳戶",
+    "common.login": "登入現有帳戶",
     "common.signIn": "登入",
+    "common.signUp": "註冊新帳號",
     "common.guest": "先體驗示範內容",
     "common.language": "語言",
     "common.chinese": "繁中",
@@ -164,8 +165,9 @@ const translations = {
     "settings.guestCopy": "登入後才能管理自己的帳戶資料與同步設定。",
   },
   en: {
-    "common.login": "Sign in / Create account",
+    "common.login": "Sign in to existing account",
     "common.signIn": "Sign in",
+    "common.signUp": "Create new account",
     "common.guest": "Preview demo",
     "common.language": "Language",
     "common.chinese": "繁中",

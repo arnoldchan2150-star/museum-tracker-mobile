@@ -1,6 +1,7 @@
 import * as WebBrowser from "expo-web-browser";
 import { makeRedirectUri } from "expo-auth-session";
 import * as ReactNative from "react-native";
+import { buildOAuthUrl } from "@/lib/oauth-url";
 
 // Extract scheme from bundle ID (last segment timestamp, prefixed with "manus")
 // e.g., "space.manus.my.app.t20240115103045" -> "manus20240115103045"
@@ -53,17 +54,6 @@ export function getApiBaseUrl(): string {
 export const SESSION_TOKEN_KEY = "app_session_token";
 export const USER_INFO_KEY = "manus-runtime-user-info";
 
-const encodeState = (value: string) => {
-  if (typeof globalThis.btoa === "function") {
-    return globalThis.btoa(value);
-  }
-  const BufferImpl = (globalThis as Record<string, any>).Buffer;
-  if (BufferImpl) {
-    return BufferImpl.from(value, "utf-8").toString("base64");
-  }
-  return value;
-};
-
 /**
  * Get the redirect URI for OAuth callback.
  * - Web: uses API server callback endpoint
@@ -83,18 +73,30 @@ export const getRedirectUri = () => {
   });
 };
 
-export const getLoginUrl = () => {
+export const getLoginUrl = (type: "signIn" | "signUp" = "signIn") => {
   const redirectUri = getRedirectUri();
-  const state = encodeState(redirectUri);
-
-  const url = new URL(`${OAUTH_PORTAL_URL}/app-auth`);
-  url.searchParams.set("appId", APP_ID);
-  url.searchParams.set("redirectUri", redirectUri);
-  url.searchParams.set("state", state);
-  url.searchParams.set("type", "signIn");
-
-  return url.toString();
+  return buildOAuthUrl({ portalUrl: OAUTH_PORTAL_URL, appId: APP_ID, redirectUri, type });
 };
+
+export async function startOAuthSignUp(): Promise<string | null> {
+  const signUpUrl = getLoginUrl("signUp");
+
+  if (ReactNative.Platform.OS === "web") {
+    if (typeof window !== "undefined") window.location.href = signUpUrl;
+    return null;
+  }
+
+  const redirectUri = getRedirectUri();
+  const result = await WebBrowser.openAuthSessionAsync(signUpUrl, redirectUri);
+  if (result.type === "success" && result.url) {
+    const { completeOAuthCallback } = await import("@/lib/oauth-session");
+    await completeOAuthCallback(result.url);
+  } else if (result.type === "cancel" || result.type === "dismiss") {
+    console.info("[OAuth] Sign up browser session was cancelled");
+    throw new Error("OAUTH_CANCELLED");
+  }
+  return result.type === "success" ? result.url ?? null : null;
+}
 
 /**
  * Start OAuth login flow.

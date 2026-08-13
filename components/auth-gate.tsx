@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
-import { startOAuthLogin } from "@/constants/oauth";
+import { startOAuthLogin, startOAuthSignUp } from "@/constants/oauth";
 import { LanguageSwitcher, useI18n } from "@/lib/i18n";
 import { useGuestPreview } from "@/lib/guest-preview-context";
 import { AppleSignInButton } from "@/components/apple-sign-in-button";
@@ -22,6 +22,15 @@ export function AuthGate({ loading, error }: { loading: boolean; error: Error | 
   const handleLogin = async () => {
     try {
       await startOAuthLogin();
+      if (Platform.OS !== "web") router.replace("/(tabs)");
+    } catch (error) {
+      Alert.alert(t("auth.loginErrorTitle"), getLoginError(error));
+    }
+  };
+
+  const handleSignUp = async () => {
+    try {
+      await startOAuthSignUp();
       if (Platform.OS !== "web") router.replace("/(tabs)");
     } catch (error) {
       Alert.alert(t("auth.loginErrorTitle"), getLoginError(error));
@@ -46,6 +55,10 @@ export function AuthGate({ loading, error }: { loading: boolean; error: Error | 
     <Pressable onPress={() => { void handleLogin(); }} style={({ pressed }) => [styles.loginButton, { backgroundColor: colors.primary }, pressed && styles.pressed]}>
       <IconSymbol name="person.crop.circle.fill" size={19} color="#FFFDF6" />
       <Text style={styles.loginText}>{t("common.login")}</Text>
+    </Pressable>
+    <Pressable onPress={() => { void handleSignUp(); }} style={({ pressed }) => [styles.signUpButton, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.primary }, pressed && styles.pressed]}>
+      <IconSymbol name="plus" size={19} color={colors.primary} />
+      <Text style={[styles.signUpText, { color: colors.primary }]}>{t("common.signUp")}</Text>
     </Pressable>
     <AppleSignInButton />
     {isExpoGo ? <Text style={[styles.buildNotice, { color: colors.warning }]}>{t("auth.oauthBuildNotice")}</Text> : null}
@@ -91,6 +104,8 @@ const styles = StyleSheet.create({
   promiseText: { flex: 1, fontSize: 13, lineHeight: 19, fontWeight: "700" },
   loginButton: { minHeight: 52, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 20 },
   loginText: { color: "#FFFDF6", fontSize: 14, fontWeight: "900" },
+  signUpButton: { minHeight: 50, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 10 },
+  signUpText: { fontSize: 14, fontWeight: "900" },
   guestButton: { minHeight: 48, borderWidth: 1, borderRadius: 15, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 10 },
   guestText: { fontSize: 13, fontWeight: "900" },
   resetButton: { minHeight: 44, borderWidth: 1, borderRadius: 14, alignItems: "center", justifyContent: "center", marginTop: 10 },

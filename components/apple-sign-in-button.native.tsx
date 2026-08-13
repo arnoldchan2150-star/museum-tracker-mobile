@@ -1,11 +1,13 @@
 import { Alert, Platform, StyleSheet } from "react-native";
 import * as AppleAuthentication from "expo-apple-authentication";
+import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import { signInWithApple } from "@/lib/apple-auth";
 
 export function AppleSignInButton({ compact = false }: { compact?: boolean }) {
   const { t } = useI18n();
+  const router = useRouter();
   const [available, setAvailable] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -24,6 +26,7 @@ export function AppleSignInButton({ compact = false }: { compact?: boolean }) {
     setBusy(true);
     try {
       await signInWithApple();
+      router.replace("/(tabs)");
     } catch (error) {
       const code = (error as { code?: string })?.code;
       if (code !== "ERR_REQUEST_CANCELED") {

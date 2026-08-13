@@ -36,3 +36,5 @@
 - [x] 更新 Google／Manus OAuth 使用 AuthSession redirect URI 與原生回呼處理
 - [x] 加入 OAuth 取消回呼與 Expo Go／Development Build 的雙語錯誤提示
 - [x] 新增 EAS Development Build profile 與 App Store OAuth 測試文件；原生登入仍需在真機完成
+
+- [x] 修復按登入後畫面仍停留在同一個畫面的問題（修正 server env 載入、OAuth callback、Session 儲存、AuthGate 訂閱與 `router.replace`；真機 provider E2E 仍需驗證）

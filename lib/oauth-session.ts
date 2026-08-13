@@ -53,11 +53,15 @@ export async function completeOAuthCallback(url: string) {
     user = result.user;
   }
 
-  if (user?.openId && !encodedUser) {
-    await persistOAuthUser(user);
-  } else if (!user && sessionToken) {
-    const currentUser = await Api.getMe();
-    await persistOAuthUser(currentUser);
+  if (!user?.openId) {
+    try {
+      const currentUser = await Api.getMe();
+      if (currentUser) {
+        await persistOAuthUser(currentUser);
+      }
+    } catch (err) {
+      console.error("[OAuth] Failed to fetch current user after callback:", err);
+    }
   }
   notifyAuthChanged();
 }

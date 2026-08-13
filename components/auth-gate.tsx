@@ -1,5 +1,6 @@
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import Constants from "expo-constants";
+import { useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
@@ -9,11 +10,20 @@ import { useGuestPreview } from "@/lib/guest-preview-context";
 import { AppleSignInButton } from "@/components/apple-sign-in-button";
 
 export function AuthGate({ loading, error }: { loading: boolean; error: Error | null }) {
+  const router = useRouter();
   const colors = useColors();
   const { t } = useI18n();
   const { enterGuestPreview } = useGuestPreview();
   const isExpoGo = (Constants as { appOwnership?: string }).appOwnership === "expo";
   const getLoginError = (value: unknown) => value instanceof Error && value.message === "OAUTH_CANCELLED" ? t("auth.oauthCancelled") : value instanceof Error ? value.message : t("auth.loginError");
+  const handleLogin = async () => {
+    try {
+      await startOAuthLogin();
+      if (Platform.OS !== "web") router.replace("/(tabs)");
+    } catch (error) {
+      Alert.alert(t("auth.loginErrorTitle"), getLoginError(error));
+    }
+  };
 
   if (loading) {
     return <ScreenContainer edges={["top", "bottom", "left", "right"]} className="items-center justify-center"><ActivityIndicator color={colors.primary} size="large" /></ScreenContainer>;
@@ -30,7 +40,7 @@ export function AuthGate({ loading, error }: { loading: boolean; error: Error | 
       <PromiseRow icon="building.2.fill" text={t("auth.promiseMuseums")} colors={colors} />
       <PromiseRow icon="cloud.fill" text={t("auth.promiseSync")} colors={colors} />
     </View>
-    <Pressable onPress={() => void startOAuthLogin().catch((error) => Alert.alert(t("auth.loginErrorTitle"), getLoginError(error)))} style={({ pressed }) => [styles.loginButton, { backgroundColor: colors.primary }, pressed && styles.pressed]}>
+    <Pressable onPress={() => { void handleLogin(); }} style={({ pressed }) => [styles.loginButton, { backgroundColor: colors.primary }, pressed && styles.pressed]}>
       <IconSymbol name="person.crop.circle.fill" size={19} color="#FFFDF6" />
       <Text style={styles.loginText}>{t("common.login")}</Text>
     </Pressable>

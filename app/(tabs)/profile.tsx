@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import * as Haptics from "expo-haptics";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { GuestBanner } from "@/components/guest-banner";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -18,6 +18,7 @@ import { LanguageSwitcher, useI18n } from "@/lib/i18n";
 
 export default function ProfileScreen() {
   const colors = useColors();
+  const router = useRouter();
   const { t } = useI18n();
   const { isGuestPreview } = useGuestPreview();
   const { user, loading: authLoading, isAuthenticated, logout } = useAuth();
@@ -154,7 +155,7 @@ export default function ProfileScreen() {
   const cloudUserName = user?.name || user?.email || "目前裝置";
 
   return <ScreenContainer edges={["top", "left", "right"]}><KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-    {isGuestPreview ? <GuestBanner /> : null}<View style={styles.header}><View><Text style={[styles.kicker, { color: colors.primary }]}>{t("profile.kicker")}</Text><Text style={[styles.title, { color: colors.foreground }]}>{t("profile.title")}</Text></View><View style={styles.headerActions}>{!isGuestPreview ? <LanguageSwitcher compact /> : null}{!isGuestPreview ? <Pressable accessibilityLabel="編輯個人資料" onPress={editing ? cancelEditing : startEditing} style={({ pressed }) => [styles.headerButton, { borderColor: colors.border, backgroundColor: colors.surface }, pressed && styles.pressed]}><IconSymbol name={editing ? "xmark" : "pencil"} size={17} color={colors.primary} /><Text style={[styles.headerButtonText, { color: colors.primary }]}>{editing ? t("common.cancel") : t("profile.edit")}</Text></Pressable> : null}</View></View>
+    {isGuestPreview ? <GuestBanner /> : null}<View style={styles.header}><View><Text style={[styles.kicker, { color: colors.primary }]}>{t("profile.kicker")}</Text><Text style={[styles.title, { color: colors.foreground }]}>{t("profile.title")}</Text></View><View style={styles.headerActions}>{!isGuestPreview ? <LanguageSwitcher compact /> : null}{!isGuestPreview ? <Pressable accessibilityLabel={t("settings.open")} onPress={() => router.push("/settings")} style={({ pressed }) => [styles.headerButton, { borderColor: colors.border, backgroundColor: colors.surface }, pressed && styles.pressed]}><IconSymbol name="gear" size={17} color={colors.primary} /><Text style={[styles.headerButtonText, { color: colors.primary }]}>{t("settings.open")}</Text></Pressable> : null}{!isGuestPreview ? <Pressable accessibilityLabel="編輯個人資料" onPress={editing ? cancelEditing : startEditing} style={({ pressed }) => [styles.headerButton, { borderColor: colors.border, backgroundColor: colors.surface }, pressed && styles.pressed]}><IconSymbol name={editing ? "xmark" : "pencil"} size={17} color={colors.primary} /><Text style={[styles.headerButtonText, { color: colors.primary }]}>{editing ? t("common.cancel") : t("profile.edit")}</Text></Pressable> : null}</View></View>
 
     <View style={[styles.profileCard, { backgroundColor: colors.primary }]}>{avatar ? <Image source={{ uri: avatar }} style={styles.avatarImage} /> : <View style={styles.avatar}><Text style={[styles.avatarText, { color: colors.primary }]}>{getProfileInitial(profile)}</Text></View>}<View style={styles.profileCopy}><Text style={styles.profileName}>{displayName}</Text><Text style={styles.profileTitle}>{getProfileDisplayTitle(profile)}</Text><Text style={styles.profileBadge}>{getBadgeLabel(count)}</Text></View><IconSymbol name="person.crop.circle.fill" size={30} color="#D8F0F1" /></View>
 

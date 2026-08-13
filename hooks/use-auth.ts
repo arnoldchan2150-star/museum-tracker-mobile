@@ -2,7 +2,7 @@ import * as Api from "@/lib/_core/api";
 import * as Auth from "@/lib/_core/auth";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppState, Platform } from "react-native";
-import { subscribeAuthChanges } from "@/lib/auth-events";
+import { notifyAuthChanged, subscribeAuthChanges } from "@/lib/auth-events";
 
 type UseAuthOptions = {
   autoFetch?: boolean;
@@ -92,7 +92,7 @@ export function useAuth(options?: UseAuthOptions) {
       await Auth.clearUserInfo();
       setUser(null);
       setError(null);
-      // Other screens re-read auth state through the shared event bus.
+      notifyAuthChanged();
     }
   }, []);
 

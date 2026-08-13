@@ -29,6 +29,9 @@ const MAPPING = {
   "arrow.down.circle": "cloud-download",
   map: "map",
   store: "store",
+  gear: "settings",
+  lock: "lock",
+  logout: "logout",
 } satisfies Record<string, IconName>;
 
 type IconSymbolName = keyof typeof MAPPING;

@@ -1,0 +1,281 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from "react";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+
+export type Language = "zh-Hant" | "en";
+
+type TranslationKey = keyof typeof translations["zh-Hant"];
+
+const translations = {
+  "zh-Hant": {
+    "common.login": "登入／建立我的帳戶",
+    "common.signIn": "登入",
+    "common.guest": "先體驗示範內容",
+    "common.language": "語言",
+    "common.chinese": "繁中",
+    "common.english": "English",
+    "common.back": "返回",
+    "common.loading": "載入中…",
+    "common.add": "新增",
+    "common.save": "儲存",
+    "common.cancel": "取消",
+    "common.edit": "編輯",
+    "common.delete": "刪除",
+    "guest.badge": "訪客預覽",
+    "guest.banner": "你目前正在瀏覽示範內容；登入後才能保存自己的足跡與回憶。",
+    "guest.login": "登入後開始收藏",
+    "guest.readOnly": "訪客模式只能瀏覽示範資料，不能修改或上傳內容。",
+    "guest.profileTitle": "訪客預覽",
+    "guest.profileCopy": "先看看 Wanderstamp 如何整理你的文化旅程；登入後，這裡會變成你的專屬 Profile。",
+    "auth.eyebrow": "WANDERSTAMP",
+    "auth.title": "收藏屬於你的世界足跡",
+    "auth.copy": "登入或建立自己的帳戶後，博物館、照片、影片與現場回憶都會只保存到你的個人空間，換裝置也能繼續探索。",
+    "auth.promiseProfile": "每位使用者都有獨立的 Profile",
+    "auth.promiseMuseums": "各自的博物館清單與世界地圖",
+    "auth.promiseSync": "登入後可跨裝置備份與同步",
+    "auth.note": "不登入時不會載入或展示其他帳戶的足跡。",
+    "auth.error": "登入狀態確認失敗，請再試一次。",
+    "tabs.map": "足跡",
+    "tabs.library": "清單",
+    "tabs.profile": "我的",
+    "home.eyebrow": "WANDERSTAMP",
+    "home.title": "世界足跡",
+    "home.subtitle": "每個標記，都是一次看見世界的證明。",
+    "home.updated": "間已更新",
+    "home.route": "你的文化航線",
+    "home.countries": "個國家",
+    "home.cities": "座城市",
+    "home.viewList": "查看清單",
+    "library.kicker": "THE COLLECTION",
+    "library.title": "博物館清單",
+    "library.subtitle": "把每一次看展，整理成你的文化地圖。",
+    "library.search": "搜尋博物館名稱、城市或國家",
+    "library.country": "國家",
+    "library.city": "城市",
+    "library.year": "年份",
+    "library.photos": "照片",
+    "library.all": "全部",
+    "library.withPhotos": "有照片",
+    "library.withoutPhotos": "沒有照片",
+    "library.results": "筆足跡",
+    "library.applied": "已套用篩選條件",
+    "library.allMuseums": "顯示全部博物館",
+    "library.clear": "清除全部",
+    "library.noResults": "找不到這組足跡",
+    "library.noResultsCopy": "試試其他關鍵字、城市或照片條件，或清除全部篩選。",
+    "library.clearFilters": "清除篩選",
+    "library.add": "新增",
+    "library.hasPhoto": "有照片",
+    "profile.kicker": "THE COLLECTOR",
+    "profile.title": "我的旅印",
+    "profile.edit": "編輯",
+    "profile.subtitle": "把看過的展覽，留成未來的靈感。",
+    "profile.saved": "已收藏",
+    "profile.next": "下一站",
+    "profile.cloud": "雲端備份",
+    "profile.loginCloud": "登入後同步到其他裝置",
+    "profile.autoSync": "自動同步",
+    "profile.autoSyncOn": "修改後會在登入且有網路時自動備份",
+    "profile.autoSyncOff": "目前只保存於本機，不會自動上傳",
+    "profile.loginBackup": "登入並啟用雲端備份",
+    "profile.backup": "立即備份",
+    "profile.restore": "從雲端還原",
+    "profile.signOut": "登出此帳戶",
+    "profile.localOnly": "本機資料與雲端備份可手動同步。",
+    "profile.guestOnly": "訪客模式不會保存資料；登入後即可建立自己的帳戶空間。",
+    "add.title": "新增博物館",
+    "add.kicker": "NEW STAMP",
+    "add.name": "博物館名稱",
+    "add.city": "城市",
+    "add.country": "國家／地區",
+    "add.date": "造訪日期",
+    "add.rating": "我的評分",
+    "add.note": "參觀筆記（選填）",
+    "add.media": "現場照片與影片",
+    "add.addMedia": "加入媒體",
+    "add.submit": "蓋上這枚印章",
+    "add.hint": "記下這次看展的地點、時間與現場回憶。",
+    "add.namePlaceholder": "例如：臺北市立美術館",
+    "add.cityPlaceholder": "例如：台北",
+    "add.countryPlaceholder": "例如：台灣",
+    "add.datePlaceholder": "YYYY-MM-DD",
+    "add.notePlaceholder": "這次看展，什麼讓你印象最深？",
+    "add.mediaHint": "可以在蓋章前先加入多個媒體",
+    "add.noMedia": "尚未加入照片或影片",
+    "add.mediaLoading": "讀取中…",
+    "add.storyTitle": "這段記憶的故事",
+    "add.storyPlaceholder": "例如：入口的夕陽照在玻璃上",
+    "add.saveStory": "保存描述",
+    "add.emptyStory": "尚未寫下描述",
+    "detail.album": "我的 Album",
+    "detail.addMedia": "新增媒體",
+    "detail.noMedia": "還沒有照片或影片",
+    "detail.readOnly": "登入後才能新增照片、影片與描述。",
+  },
+  en: {
+    "common.login": "Sign in / Create account",
+    "common.signIn": "Sign in",
+    "common.guest": "Preview demo",
+    "common.language": "Language",
+    "common.chinese": "繁中",
+    "common.english": "English",
+    "common.back": "Back",
+    "common.loading": "Loading…",
+    "common.add": "Add",
+    "common.save": "Save",
+    "common.cancel": "Cancel",
+    "common.edit": "Edit",
+    "common.delete": "Delete",
+    "guest.badge": "Guest preview",
+    "guest.banner": "You are browsing demo content. Sign in to save your own visits and memories.",
+    "guest.login": "Sign in to start collecting",
+    "guest.readOnly": "Guest mode is read-only. Sign in to edit or upload content.",
+    "guest.profileTitle": "Guest preview",
+    "guest.profileCopy": "Explore how Wanderstamp organizes your cultural journey. After signing in, this becomes your personal profile.",
+    "auth.eyebrow": "WANDERSTAMP",
+    "auth.title": "Collect your own world trail",
+    "auth.copy": "Sign in or create an account so museums, photos, videos, and field memories stay in your personal space across devices.",
+    "auth.promiseProfile": "Every user gets a private profile",
+    "auth.promiseMuseums": "Your own museum list and world map",
+    "auth.promiseSync": "Back up and sync across devices after signing in",
+    "auth.note": "No other account's trail is loaded or shown while you are signed out.",
+    "auth.error": "We could not confirm your sign-in status. Please try again.",
+    "tabs.map": "Trail",
+    "tabs.library": "Library",
+    "tabs.profile": "Profile",
+    "home.eyebrow": "WANDERSTAMP",
+    "home.title": "World trail",
+    "home.subtitle": "Every marker is proof that you saw a little more of the world.",
+    "home.updated": "updated",
+    "home.route": "Your cultural route",
+    "home.countries": "countries",
+    "home.cities": "cities",
+    "home.viewList": "View library",
+    "library.kicker": "THE COLLECTION",
+    "library.title": "Museum library",
+    "library.subtitle": "Turn every exhibition visit into your cultural map.",
+    "library.search": "Search museums, cities, or countries",
+    "library.country": "Country",
+    "library.city": "City",
+    "library.year": "Year",
+    "library.photos": "Photos",
+    "library.all": "All",
+    "library.withPhotos": "With photos",
+    "library.withoutPhotos": "Without photos",
+    "library.results": "visits",
+    "library.applied": "Filters applied",
+    "library.allMuseums": "Showing all museums",
+    "library.clear": "Clear all",
+    "library.noResults": "No matching visits",
+    "library.noResultsCopy": "Try another keyword, city, or photo filter, or clear all filters.",
+    "library.clearFilters": "Clear filters",
+    "library.add": "Add",
+    "library.hasPhoto": "Photos",
+    "profile.kicker": "THE COLLECTOR",
+    "profile.title": "My trail",
+    "profile.edit": "Edit",
+    "profile.subtitle": "Keep the exhibitions you saw as future inspiration.",
+    "profile.saved": "Saved",
+    "profile.next": "Next stop",
+    "profile.cloud": "Cloud backup",
+    "profile.loginCloud": "Sign in to sync across devices",
+    "profile.autoSync": "Auto-sync",
+    "profile.autoSyncOn": "Changes back up automatically when signed in and online",
+    "profile.autoSyncOff": "Stored locally only; nothing is uploaded automatically",
+    "profile.loginBackup": "Sign in to enable cloud backup",
+    "profile.backup": "Back up now",
+    "profile.restore": "Restore from cloud",
+    "profile.signOut": "Sign out",
+    "profile.localOnly": "Local data and cloud backups can be synced manually.",
+    "profile.guestOnly": "Guest mode does not save data. Sign in to create your own private space.",
+    "add.title": "Add museum",
+    "add.kicker": "NEW STAMP",
+    "add.name": "Museum name",
+    "add.city": "City",
+    "add.country": "Country / region",
+    "add.date": "Visit date",
+    "add.rating": "My rating",
+    "add.note": "Visit notes (optional)",
+    "add.media": "Photos and videos",
+    "add.addMedia": "Add media",
+    "add.submit": "Add this stamp",
+    "add.hint": "Capture the place, date, and memory from this visit.",
+    "add.namePlaceholder": "e.g. Taipei Fine Arts Museum",
+    "add.cityPlaceholder": "e.g. Taipei",
+    "add.countryPlaceholder": "e.g. Taiwan",
+    "add.datePlaceholder": "YYYY-MM-DD",
+    "add.notePlaceholder": "What stayed with you from this visit?",
+    "add.mediaHint": "Add multiple media items before saving this stamp",
+    "add.noMedia": "No photos or videos added yet",
+    "add.mediaLoading": "Loading…",
+    "add.storyTitle": "The story behind this memory",
+    "add.storyPlaceholder": "e.g. Sunset light on the glass entrance",
+    "add.saveStory": "Save description",
+    "add.emptyStory": "No description yet",
+    "detail.album": "My album",
+    "detail.addMedia": "Add media",
+    "detail.noMedia": "No photos or videos yet",
+    "detail.readOnly": "Sign in to add photos, videos, and descriptions.",
+  },
+} as const;
+
+const LANGUAGE_KEY = "wanderstamp.language.v1";
+
+type I18nContextValue = {
+  language: Language;
+  setLanguage: (language: Language) => void;
+  t: (key: TranslationKey, values?: Record<string, string | number>) => string;
+};
+
+const I18nContext = createContext<I18nContextValue | null>(null);
+
+export function I18nProvider({ children }: PropsWithChildren) {
+  const [language, setLanguageState] = useState<Language>("zh-Hant");
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    void AsyncStorage.getItem(LANGUAGE_KEY).then((stored) => {
+      if (stored === "en" || stored === "zh-Hant") setLanguageState(stored);
+      setReady(true);
+    }).catch(() => setReady(true));
+  }, []);
+
+  const setLanguage = useCallback((next: Language) => {
+    setLanguageState(next);
+    void AsyncStorage.setItem(LANGUAGE_KEY, next);
+  }, []);
+
+  const t = useCallback((key: TranslationKey, values?: Record<string, string | number>) => {
+    let value: string = translations[language][key] ?? translations["zh-Hant"][key] ?? key;
+    Object.entries(values ?? {}).forEach(([name, replacement]) => { value = value.replace(`{${name}}`, String(replacement)); });
+    return value;
+  }, [language]);
+
+  const contextValue = useMemo(() => ({ language, setLanguage, t }), [language, setLanguage, t]);
+  if (!ready) return <View style={styles.loading}><ActivityIndicator /></View>;
+  return <I18nContext.Provider value={contextValue}>{children}</I18nContext.Provider>;
+}
+
+export function useI18n(): I18nContextValue {
+  const context = useContext(I18nContext);
+  if (!context) throw new Error("useI18n must be used inside I18nProvider");
+  return context;
+}
+
+export function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
+  const { language, setLanguage, t } = useI18n();
+  return <View style={[styles.switcher, compact && styles.compactSwitcher]} accessibilityLabel={t("common.language")}>
+    <Pressable onPress={() => setLanguage("zh-Hant")} style={[styles.option, language === "zh-Hant" && styles.activeOption]}><Text style={[styles.optionText, language === "zh-Hant" && styles.activeText]}>{t("common.chinese")}</Text></Pressable>
+    <Pressable onPress={() => setLanguage("en")} style={[styles.option, language === "en" && styles.activeOption]}><Text style={[styles.optionText, language === "en" && styles.activeText]}>{t("common.english")}</Text></Pressable>
+  </View>;
+}
+
+const styles = StyleSheet.create({
+  loading: { flex: 1, alignItems: "center", justifyContent: "center" },
+  switcher: { flexDirection: "row", alignSelf: "center", borderWidth: 1, borderColor: "#D6D8D8", borderRadius: 12, padding: 3, backgroundColor: "rgba(255,255,255,0.72)" },
+  compactSwitcher: { alignSelf: "flex-end" },
+  option: { minWidth: 52, minHeight: 30, alignItems: "center", justifyContent: "center", borderRadius: 9, paddingHorizontal: 8 },
+  activeOption: { backgroundColor: "#0A7EA4" },
+  optionText: { color: "#687076", fontSize: 11, fontWeight: "700" },
+  activeText: { color: "#FFFFFF" },
+});

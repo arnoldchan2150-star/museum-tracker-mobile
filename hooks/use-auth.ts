@@ -67,8 +67,23 @@ export function useAuth(options?: UseAuthOptions) {
         console.log("[useAuth] Using cached user info");
         setUser(cachedUser);
       } else {
-        console.log("[useAuth] No cached user, setting user to null");
-        setUser(null);
+        console.log("[useAuth] No cached user, resolving user from API...");
+        const apiUser = await Api.getMe();
+        if (apiUser) {
+          const userInfo: Auth.User = {
+            id: apiUser.id,
+            openId: apiUser.openId,
+            name: apiUser.name,
+            email: apiUser.email,
+            loginMethod: apiUser.loginMethod,
+            lastSignedIn: new Date(apiUser.lastSignedIn),
+          };
+          await Auth.setUserInfo(userInfo);
+          setUser(userInfo);
+        } else {
+          console.log("[useAuth] API could not resolve user, setting user to null");
+          setUser(null);
+        }
       }
     } catch (err) {
       const error = err instanceof Error ? err : new Error("Failed to fetch user");

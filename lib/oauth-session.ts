@@ -7,6 +7,31 @@ function decodeUser(encoded: string) {
   return JSON.parse(decoded) as { id?: number; openId?: string; name?: string | null; email?: string | null; loginMethod?: string | null; lastSignedIn?: string };
 }
 
+type CallbackUser = { id?: number; openId?: string; name?: string | null; email?: string | null; loginMethod?: string | null; lastSignedIn?: string };
+
+export async function persistOAuthUser(user?: CallbackUser | null): Promise<CallbackUser | null> {
+  if (!user?.openId) return null;
+  await Auth.setUserInfo({
+    id: user.id ?? 0,
+    openId: user.openId,
+    name: user.name ?? null,
+    email: user.email ?? null,
+    loginMethod: user.loginMethod ?? "manus",
+    lastSignedIn: new Date(user.lastSignedIn || Date.now()),
+  });
+  return user;
+}
+
+export async function persistEncodedOAuthUser(encodedUser?: string | null): Promise<CallbackUser | null> {
+  if (!encodedUser) return null;
+  try {
+    return await persistOAuthUser(decodeUser(encodedUser));
+  } catch (error) {
+    console.error("[OAuth] Failed to persist callback user:", error);
+    return null;
+  }
+}
+
 export async function completeOAuthCallback(url: string) {
   const parsed = new URL(url);
   const sessionToken = parsed.searchParams.get("sessionToken");
@@ -14,11 +39,7 @@ export async function completeOAuthCallback(url: string) {
   let user: { id?: number; openId?: string; name?: string | null; email?: string | null; loginMethod?: string | null; lastSignedIn?: string } | null = null;
 
   if (encodedUser) {
-    try {
-      user = decodeUser(encodedUser);
-    } catch {
-      user = null;
-    }
+    user = await persistEncodedOAuthUser(encodedUser);
   }
 
   if (sessionToken) {
@@ -32,15 +53,11 @@ export async function completeOAuthCallback(url: string) {
     user = result.user;
   }
 
-  if (user?.openId) {
-    await Auth.setUserInfo({
-      id: user.id ?? 0,
-      openId: user.openId,
-      name: user.name ?? null,
-      email: user.email ?? null,
-      loginMethod: user.loginMethod ?? "manus",
-      lastSignedIn: new Date(user.lastSignedIn || Date.now()),
-    });
+  if (user?.openId && !encodedUser) {
+    await persistOAuthUser(user);
+  } else if (!user && sessionToken) {
+    const currentUser = await Api.getMe();
+    await persistOAuthUser(currentUser);
   }
   notifyAuthChanged();
 }

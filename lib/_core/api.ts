@@ -116,6 +116,23 @@ export async function exchangeOAuthCode(
   };
 }
 
+export type AppleSignInPayload = {
+  identityToken: string;
+  authorizationCode?: string | null;
+  nonce: string;
+  user: string;
+  email?: string | null;
+  name?: string | null;
+};
+
+export async function signInWithApple(payload: AppleSignInPayload): Promise<{ sessionToken: string; user: any }> {
+  const result = await apiCall<{ app_session_id: string; user: any }>("/api/oauth/apple", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return { sessionToken: result.app_session_id, user: result.user };
+}
+
 // Logout
 export async function logout(): Promise<void> {
   await apiCall<void>("/api/auth/logout", {

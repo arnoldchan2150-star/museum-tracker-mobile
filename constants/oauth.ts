@@ -1,4 +1,6 @@
 import * as Linking from "expo-linking";
+import * as WebBrowser from "expo-web-browser";
+import Constants from "expo-constants";
 import * as ReactNative from "react-native";
 
 // Extract scheme from bundle ID (last segment timestamp, prefixed with "manus")
@@ -6,6 +8,8 @@ import * as ReactNative from "react-native";
 const bundleId = "com.app.museumtrackermobile";
 const timestamp = bundleId.split(".").pop()?.replace(/^t/, "") ?? "";
 const schemeFromBundleId = `manus${timestamp}`;
+
+const isExpoGo = (Constants as { appOwnership?: string }).appOwnership === "expo";
 
 const env = {
   portal: process.env.EXPO_PUBLIC_OAUTH_PORTAL_URL ?? "",
@@ -72,7 +76,7 @@ export const getRedirectUri = () => {
   if (ReactNative.Platform.OS === "web") {
     return `${getApiBaseUrl()}/api/oauth/callback`;
   } else {
-    return Linking.createURL("/oauth/callback", {
+    return Linking.createURL("/oauth/callback", isExpoGo ? undefined : {
       scheme: env.deepLinkScheme,
     });
   }
@@ -105,27 +109,17 @@ export async function startOAuthLogin(): Promise<string | null> {
   const loginUrl = getLoginUrl();
 
   if (ReactNative.Platform.OS === "web") {
-    // On web, just redirect
-    if (typeof window !== "undefined") {
-      window.location.href = loginUrl;
-    }
+    if (typeof window !== "undefined") window.location.href = loginUrl;
     return null;
   }
 
-  const supported = await Linking.canOpenURL(loginUrl);
-  if (!supported) {
-    console.warn("[OAuth] Cannot open login URL: URL scheme not supported");
-    // 可考虑抛出错误或返回错误状态，让调用方处理
-    return null;
+  const redirectUri = getRedirectUri();
+  const result = await WebBrowser.openAuthSessionAsync(loginUrl, redirectUri);
+  if (result.type === "success" && result.url) {
+    const { completeOAuthCallback } = await import("@/lib/oauth-session");
+    await completeOAuthCallback(result.url);
+  } else if (result.type === "cancel" || result.type === "dismiss") {
+    console.info("[OAuth] Login browser session was cancelled");
   }
-
-  try {
-    await Linking.openURL(loginUrl);
-  } catch (error) {
-    console.error("[OAuth] Failed to open login URL:", error);
-    // 可考虑抛出错误让调用方处理
-  }
-
-  // The OAuth callback will reopen the app via deep link.
-  return null;
+  return result.type === "success" ? result.url ?? null : null;
 }

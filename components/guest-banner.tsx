@@ -1,8 +1,9 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
 import { LanguageSwitcher, useI18n } from "@/lib/i18n";
 import { startOAuthLogin } from "@/constants/oauth";
+import { AppleSignInButton } from "@/components/apple-sign-in-button";
 
 export function GuestBanner({ compact = false }: { compact?: boolean }) {
   const colors = useColors();
@@ -15,7 +16,8 @@ export function GuestBanner({ compact = false }: { compact?: boolean }) {
       </View>
       <LanguageSwitcher compact />
     </View>
-    <Pressable onPress={() => void startOAuthLogin()} style={({ pressed }) => [styles.button, { backgroundColor: colors.primary }, pressed && styles.pressed]}><Text style={styles.buttonText}>{t("guest.login")}</Text></Pressable>
+    <Pressable onPress={() => void startOAuthLogin().catch((error) => Alert.alert(t("auth.loginErrorTitle"), error instanceof Error ? error.message : t("auth.loginError")))} style={({ pressed }) => [styles.button, { backgroundColor: colors.primary }, pressed && styles.pressed]}><Text style={styles.buttonText}>{t("guest.login")}</Text></Pressable>
+    <AppleSignInButton compact />
   </View>;
 }
 

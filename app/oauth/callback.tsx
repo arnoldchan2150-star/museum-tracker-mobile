@@ -5,6 +5,7 @@ import * as Linking from "expo-linking";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Text } from "react-native";
+import { notifyAuthChanged } from "@/lib/auth-events";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function OAuthCallback() {
@@ -59,6 +60,7 @@ export default function OAuthCallback() {
             }
           }
 
+          notifyAuthChanged();
           setStatus("success");
           console.log("[OAuth] Web authentication successful, redirecting to home...");
           setTimeout(() => {
@@ -154,6 +156,7 @@ export default function OAuthCallback() {
           console.log("[OAuth] Session token found in URL, storing...");
           await Auth.setSessionToken(sessionToken);
           console.log("[OAuth] Session token stored successfully");
+          notifyAuthChanged();
           // User info is already in the OAuth callback response
           // No need to fetch from API
           setStatus("success");
@@ -209,6 +212,7 @@ export default function OAuthCallback() {
             console.log("[OAuth] No user data in result");
           }
 
+          notifyAuthChanged();
           setStatus("success");
           console.log("[OAuth] Authentication successful, redirecting to home...");
 

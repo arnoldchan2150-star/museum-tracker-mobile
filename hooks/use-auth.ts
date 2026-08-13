@@ -2,16 +2,11 @@ import * as Api from "@/lib/_core/api";
 import * as Auth from "@/lib/_core/auth";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppState, Platform } from "react-native";
+import { subscribeAuthChanges } from "@/lib/auth-events";
 
 type UseAuthOptions = {
   autoFetch?: boolean;
 };
-
-const authSubscribers = new Set<() => void>();
-
-function notifyAuthSubscribers() {
-  authSubscribers.forEach((subscriber) => subscriber());
-}
 
 export function useAuth(options?: UseAuthOptions) {
   const { autoFetch = true } = options ?? {};
@@ -97,7 +92,7 @@ export function useAuth(options?: UseAuthOptions) {
       await Auth.clearUserInfo();
       setUser(null);
       setError(null);
-      notifyAuthSubscribers();
+      // Other screens re-read auth state through the shared event bus.
     }
   }, []);
 
@@ -105,8 +100,8 @@ export function useAuth(options?: UseAuthOptions) {
 
   useEffect(() => {
     const subscriber = () => { void fetchUser(); };
-    authSubscribers.add(subscriber);
-    return () => { authSubscribers.delete(subscriber); };
+    const unsubscribe = subscribeAuthChanges(subscriber);
+    return () => { unsubscribe(); };
   }, [fetchUser]);
 
   useEffect(() => {

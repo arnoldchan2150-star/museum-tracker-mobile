@@ -1,8 +1,13 @@
 import { COOKIE_NAME, ONE_YEAR_MS } from "../../shared/const.js";
 import type { Express, Request, Response } from "express";
+import { createRemoteJWKSet, jwtVerify } from "jose";
 import { getUserByOpenId, upsertUser } from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
+
+const APPLE_ISSUER = "https://appleid.apple.com";
+const APPLE_CLIENT_ID = process.env.APPLE_CLIENT_ID || "com.app.museumtrackermobile";
+const appleJwks = createRemoteJWKSet(new URL("https://appleid.apple.com/auth/keys"));
 
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
@@ -93,6 +98,53 @@ export function registerOAuthRoutes(app: Express) {
     } catch (error) {
       console.error("[OAuth] Callback failed", error);
       res.status(500).json({ error: "OAuth callback failed" });
+    }
+  });
+
+  app.post("/api/oauth/apple", async (req: Request, res: Response) => {
+    const body = req.body as {
+      identityToken?: unknown;
+      authorizationCode?: unknown;
+      nonce?: unknown;
+      user?: unknown;
+      email?: unknown;
+      name?: unknown;
+    };
+    const identityToken = typeof body.identityToken === "string" ? body.identityToken : "";
+    const nonce = typeof body.nonce === "string" ? body.nonce : "";
+    const requestedUser = typeof body.user === "string" ? body.user : "";
+
+    if (!identityToken || !nonce || !requestedUser) {
+      res.status(400).json({ error: "Apple identityToken, nonce, and user are required" });
+      return;
+    }
+
+    try {
+      const { payload } = await jwtVerify(identityToken, appleJwks, {
+        issuer: APPLE_ISSUER,
+        audience: APPLE_CLIENT_ID,
+        algorithms: ["RS256"],
+      });
+      const subject = typeof payload.sub === "string" ? payload.sub : "";
+      const tokenNonce = typeof payload.nonce === "string" ? payload.nonce : "";
+      if (!subject || subject !== requestedUser || tokenNonce !== nonce) {
+        res.status(401).json({ error: "Apple identity verification failed" });
+        return;
+      }
+
+      const name = typeof body.name === "string" ? body.name.trim().slice(0, 200) : null;
+      const email = typeof payload.email === "string" ? payload.email : typeof body.email === "string" ? body.email.trim().slice(0, 320) : null;
+      const user = await syncUser({ openId: subject, name, email, loginMethod: "apple" });
+      const sessionToken = await sdk.createSessionToken(subject, {
+        name: user.name || name || "",
+        expiresInMs: ONE_YEAR_MS,
+      });
+      const cookieOptions = getSessionCookieOptions(req);
+      res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+      res.json({ app_session_id: sessionToken, user: buildUserResponse(user) });
+    } catch (error) {
+      console.error("[OAuth] Apple sign-in verification failed", error);
+      res.status(401).json({ error: "Apple sign-in verification failed" });
     }
   });
 

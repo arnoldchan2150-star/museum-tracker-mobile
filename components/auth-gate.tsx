@@ -1,10 +1,11 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
 import { startOAuthLogin } from "@/constants/oauth";
 import { LanguageSwitcher, useI18n } from "@/lib/i18n";
 import { useGuestPreview } from "@/lib/guest-preview-context";
+import { AppleSignInButton } from "@/components/apple-sign-in-button";
 
 export function AuthGate({ loading, error }: { loading: boolean; error: Error | null }) {
   const colors = useColors();
@@ -26,10 +27,11 @@ export function AuthGate({ loading, error }: { loading: boolean; error: Error | 
       <PromiseRow icon="building.2.fill" text={t("auth.promiseMuseums")} colors={colors} />
       <PromiseRow icon="cloud.fill" text={t("auth.promiseSync")} colors={colors} />
     </View>
-    <Pressable onPress={() => void startOAuthLogin()} style={({ pressed }) => [styles.loginButton, { backgroundColor: colors.primary }, pressed && styles.pressed]}>
+    <Pressable onPress={() => void startOAuthLogin().catch((error) => Alert.alert(t("auth.loginErrorTitle"), error instanceof Error ? error.message : t("auth.loginError")))} style={({ pressed }) => [styles.loginButton, { backgroundColor: colors.primary }, pressed && styles.pressed]}>
       <IconSymbol name="person.crop.circle.fill" size={19} color="#FFFDF6" />
       <Text style={styles.loginText}>{t("common.login")}</Text>
     </Pressable>
+    <AppleSignInButton />
     <Pressable onPress={enterGuestPreview} style={({ pressed }) => [styles.guestButton, { borderColor: colors.primary }, pressed && styles.pressed]}>
       <IconSymbol name="book.closed.fill" size={17} color={colors.primary} />
       <Text style={[styles.guestText, { color: colors.primary }]}>{t("common.guest")}</Text>

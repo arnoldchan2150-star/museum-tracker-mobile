@@ -23,6 +23,7 @@ const MAPPING = {
   xmark: "close",
   pencil: "edit",
   photo: "photo-library",
+  "video.fill": "movie",
   map: "map",
   store: "store",
 } satisfies Record<string, IconName>;

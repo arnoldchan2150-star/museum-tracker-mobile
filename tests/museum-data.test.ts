@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getMuseumPhotos, normalizePhotos } from "../types/museum";
+import { getMuseumMedia, getMuseumPhotos, normalizePhotos } from "../types/museum";
 
 describe("museum photo album data", () => {
   it("normalizes legacy URI strings into photo items", () => {
@@ -10,7 +10,13 @@ describe("museum photo album data", () => {
   });
 
   it("keeps an individual description for each photo", () => {
-    const photos = getMuseumPhotos({ id: "m", name: "Museum", city: "Taipei", country: "Taiwan", visitedDate: "2026-01-01", note: "", createdAt: "2026-01-01", photos: [{ id: "p1", uri: "file://one.jpg", description: "入口的光影", createdAt: "2026-01-01" }, { id: "p2", uri: "file://two.jpg", description: "展廳中的作品", createdAt: "2026-01-01" }] });
+    const photos = getMuseumPhotos({ id: "m", name: "Museum", city: "Taipei", country: "Taiwan", visitedDate: "2026-01-01", note: "", createdAt: "2026-01-01", photos: [{ id: "p1", uri: "file://one.jpg", type: "photo", description: "入口的光影", createdAt: "2026-01-01" }, { id: "p2", uri: "file://two.jpg", type: "photo", description: "展廳中的作品", createdAt: "2026-01-01" }] });
     expect(photos.map((photo) => photo.description)).toEqual(["入口的光影", "展廳中的作品"]);
+  });
+
+  it("keeps video media separate from photo media", () => {
+    const media = getMuseumMedia({ id: "m", name: "Museum", city: "Taipei", country: "Taiwan", visitedDate: "2026-01-01", note: "", createdAt: "2026-01-01", media: [{ id: "v1", uri: "file://walkthrough.mp4", type: "video", description: "展廳入口的短片", createdAt: "2026-01-01" }] });
+    expect(media).toHaveLength(1);
+    expect(media[0]).toMatchObject({ type: "video", uri: "file://walkthrough.mp4", description: "展廳入口的短片" });
   });
 });

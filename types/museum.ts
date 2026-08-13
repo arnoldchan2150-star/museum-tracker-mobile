@@ -1,9 +1,14 @@
-export interface MuseumPhoto {
+export type MuseumMediaType = "photo" | "video";
+
+export interface MuseumMedia {
   id: string;
   uri: string;
+  type: MuseumMediaType;
   description: string;
   createdAt: string;
 }
+
+export type MuseumPhoto = MuseumMedia & { type: "photo" };
 
 export interface MuseumItem {
   id: string;
@@ -15,6 +20,7 @@ export interface MuseumItem {
   rating?: number;
   createdAt: string;
   photos?: MuseumPhoto[] | string[];
+  media?: MuseumMedia[];
   latitude?: number;
   longitude?: number;
 }
@@ -22,44 +28,44 @@ export interface MuseumItem {
 export type MuseumRecord = MuseumItem;
 export type MuseumDraft = Omit<MuseumItem, "id" | "createdAt">;
 
-export interface UserProfile {
-  name: string;
-  title: string;
-  bio: string;
-  avatar?: string;
-  avatarUri?: string;
-}
-
+export interface UserProfile { name: string; title: string; bio: string; avatar?: string; avatarUri?: string; }
 export const DEFAULT_PROFILE: UserProfile = { name: "", title: "", bio: "", avatar: "", avatarUri: undefined };
 
 export function normalizePhotos(photos?: MuseumItem["photos"]): MuseumPhoto[] {
   if (!Array.isArray(photos)) return [];
   return photos.filter(Boolean).map((photo, index) => {
-    if (typeof photo === "string") {
-      return { id: `legacy-${index}-${photo.slice(-18)}`, uri: photo, description: "", createdAt: "1970-01-01T00:00:00.000Z" };
-    }
-    return { id: photo.id || `photo-${index}`, uri: photo.uri, description: photo.description ?? "", createdAt: photo.createdAt || "1970-01-01T00:00:00.000Z" };
+    if (typeof photo === "string") return { id: `legacy-${index}-${photo.slice(-18)}`, uri: photo, type: "photo" as const, description: "", createdAt: "1970-01-01T00:00:00.000Z" };
+    return { id: photo.id || `photo-${index}`, uri: photo.uri, type: "photo" as const, description: photo.description ?? "", createdAt: photo.createdAt || "1970-01-01T00:00:00.000Z" };
   }).filter((photo) => Boolean(photo.uri));
 }
 
-export function getMuseumPhotos(museum: MuseumItem): MuseumPhoto[] { return normalizePhotos(museum.photos); }
+function normalizeMediaItems(media?: MuseumMedia[]): MuseumMedia[] {
+  if (!Array.isArray(media)) return [];
+  return media.filter((item) => item && item.uri).map((item, index) => ({ id: item.id || `media-${index}`, uri: item.uri, type: item.type === "video" ? "video" as const : "photo" as const, description: item.description ?? "", createdAt: item.createdAt || "1970-01-01T00:00:00.000Z" }));
+}
+
+export function getMuseumMedia(museum: MuseumItem): MuseumMedia[] {
+  const current = normalizeMediaItems(museum.media);
+  const existingUris = new Set(current.map((item) => item.uri));
+  const legacyPhotos = normalizePhotos(museum.photos).filter((photo) => !existingUris.has(photo.uri));
+  return [...current, ...legacyPhotos];
+}
+
+export function getMuseumPhotos(museum: MuseumItem): MuseumPhoto[] { return getMuseumMedia(museum).filter((item): item is MuseumPhoto => item.type === "photo"); }
+export function getMuseumVideos(museum: MuseumItem): MuseumMedia[] { return getMuseumMedia(museum).filter((item) => item.type === "video"); }
 
 export function getMuseumCoordinates(museum: MuseumItem): { latitude: number; longitude: number } {
   if (museum.latitude !== undefined && museum.longitude !== undefined) return { latitude: museum.latitude, longitude: museum.longitude };
-  const known: Record<string, { latitude: number; longitude: number }> = {
-    "羅浮宮博物館": { latitude: 48.8606, longitude: 2.3376 },
-    "現代藝術博物館": { latitude: 40.7614, longitude: -73.9776 },
-    "國立故宮博物院": { latitude: 25.1024, longitude: 121.5485 },
-  };
+  const known: Record<string, { latitude: number; longitude: number }> = { "羅浮宮博物館": { latitude: 48.8606, longitude: 2.3376 }, "現代藝術博物館": { latitude: 40.7614, longitude: -73.9776 }, "國立故宮博物院": { latitude: 25.1024, longitude: 121.5485 } };
   return known[museum.name] ?? { latitude: 25.033, longitude: 121.5654 };
 }
 
-export function normalizeMuseum(museum: MuseumItem): MuseumItem { return { ...museum, photos: normalizePhotos(museum.photos), ...getMuseumCoordinates(museum) }; }
+export function normalizeMuseum(museum: MuseumItem): MuseumItem { return { ...museum, media: getMuseumMedia(museum), photos: getMuseumPhotos(museum), ...getMuseumCoordinates(museum) }; }
 export function normalizeProfile(profile?: Partial<UserProfile>): UserProfile { return { ...DEFAULT_PROFILE, ...profile }; }
 export function getProfileInitial(profile: UserProfile): string { return profile.name.trim().slice(0, 1).toUpperCase() || "M"; }
 export function getPhotoCount(museum: MuseumItem): number { return getMuseumPhotos(museum).length; }
-export function mergeMuseumPhotos(museum: MuseumItem, photos: MuseumPhoto[]): MuseumItem { return normalizeMuseum({ ...museum, photos: [...getMuseumPhotos(museum), ...photos] }); }
-export function removeMuseumPhoto(museum: MuseumItem, photoId: string): MuseumItem { return normalizeMuseum({ ...museum, photos: getMuseumPhotos(museum).filter((photo) => photo.id !== photoId) }); }
+export function mergeMuseumPhotos(museum: MuseumItem, photos: MuseumPhoto[]): MuseumItem { return normalizeMuseum({ ...museum, media: [...getMuseumMedia(museum), ...photos] }); }
+export function removeMuseumPhoto(museum: MuseumItem, photoId: string): MuseumItem { return normalizeMuseum({ ...museum, media: getMuseumMedia(museum).filter((media) => media.id !== photoId) }); }
 export function getMapRegion() { return { latitude: 25, longitude: 20, latitudeDelta: 80, longitudeDelta: 140 }; }
 export function getMuseumLabel(museum: MuseumItem): string { return `${museum.name} · ${museum.city}`; }
 export function getProfileDisplayName(profile: UserProfile): string { return profile.name.trim() || "旅印收藏家"; }

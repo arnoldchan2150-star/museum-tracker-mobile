@@ -1,12 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { MuseumDraft, MuseumItem, MuseumPhoto, UserProfile } from "@/types/museum";
+import type { MuseumDraft, MuseumItem, MuseumMedia, MuseumPhoto, UserProfile } from "@/types/museum";
 import { normalizeMuseum, normalizePhotos } from "@/types/museum";
 export type { MuseumDraft } from "@/types/museum";
 
 const KEY = "wanderstamp.museums.v2";
 const PROFILE_KEY = "wanderstamp.profile.v1";
 
-const photo = (uri: string, description = ""): MuseumPhoto => ({ id: `seed-${uri.slice(-24)}`, uri, description, createdAt: "2025-04-18T09:00:00.000Z" });
+const photo = (uri: string, description = ""): MuseumPhoto => ({ id: `seed-${uri.slice(-24)}`, uri, type: "photo", description, createdAt: "2025-04-18T09:00:00.000Z" });
 
 const SEED: MuseumItem[] = [
   { id: "louvre", name: "羅浮宮博物館", city: "巴黎", country: "法國", visitedDate: "2025-04-18", note: "第一次看見蒙娜麗莎，金字塔建築非常宏偉。", rating: 5, createdAt: "2025-04-18T09:00:00.000Z", photos: [photo("https://images.unsplash.com/photo-1499856871958-5b9627545d1a?w=600", "抵達巴黎時拍下的城市與博物館周邊。")] },
@@ -32,18 +32,26 @@ export async function addMuseum(draft: MuseumDraft): Promise<MuseumItem> {
   return item;
 }
 
-export async function updateMuseumPhotos(id: string, photos: MuseumPhoto[]): Promise<MuseumItem[]> {
+export async function updateMuseumMedia(id: string, media: MuseumMedia[]): Promise<MuseumItem[]> {
   const items = await getMuseums();
-  const updated = items.map((museum) => museum.id === id ? normalizeMuseum({ ...museum, photos }) : museum);
+  const updated = items.map((museum) => museum.id === id ? normalizeMuseum({ ...museum, media }) : museum);
+  await saveMuseums(updated);
+  return updated;
+}
+
+export async function updateMuseumPhotos(id: string, photos: MuseumPhoto[]): Promise<MuseumItem[]> {
+  return updateMuseumMedia(id, photos);
+}
+
+export async function updateMuseumMediaDescription(museumId: string, mediaId: string, description: string): Promise<MuseumItem[]> {
+  const items = await getMuseums();
+  const updated = items.map((museum) => museum.id === museumId ? normalizeMuseum({ ...museum, media: museum.media?.map((item) => item.id === mediaId ? { ...item, description } : item) }) : museum);
   await saveMuseums(updated);
   return updated;
 }
 
 export async function updateMuseumPhotoDescription(museumId: string, photoId: string, description: string): Promise<MuseumItem[]> {
-  const items = await getMuseums();
-  const updated = items.map((museum) => museum.id === museumId ? normalizeMuseum({ ...museum, photos: normalizePhotos(museum.photos).map((item) => item.id === photoId ? { ...item, description } : item) }) : museum);
-  await saveMuseums(updated);
-  return updated;
+  return updateMuseumMediaDescription(museumId, photoId, description);
 }
 
 export async function getStoredProfile(): Promise<UserProfile> {
@@ -63,7 +71,7 @@ export function getStars(value = 0) { return "★".repeat(Math.max(0, Math.min(5
 export function getPalette(index: number) { const list = [{ background: "#DCEEF2", ink: "#0A5E75" }, { background: "#F4E7D0", ink: "#8A5A16" }, { background: "#E8E2F2", ink: "#69518A" }]; return list[index % list.length]; }
 export const demoMuseums = SEED;
 export const museumStorageKey = KEY;
-export function getDraft(): MuseumRecordDraft { return { name: "", city: "", country: "", visitedDate: new Date().toISOString().slice(0, 10), note: "", rating: 0, photos: [] }; }
+export function getDraft(): MuseumRecordDraft { return { name: "", city: "", country: "", visitedDate: new Date().toISOString().slice(0, 10), note: "", rating: 0, photos: [], media: [] }; }
 export function isDraftValid(draft: MuseumRecordDraft) { return Boolean(draft.name.trim() && draft.city.trim() && draft.country.trim()); }
 export function getMuseumSummary(museum: MuseumItem) { return `${museum.city} · ${museum.country}`; }
 export function getMuseumNote(museum: MuseumItem) { return museum.note || "尚未留下參觀筆記"; }

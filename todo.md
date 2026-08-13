@@ -14,3 +14,4 @@
 - [x] 實作博物館照片 Album 上傳與藝廊檢視
 - [x] 準備 App Store 正式原生打包與發佈說明
 - [x] 修復 Web 預覽錯誤：react-native-maps 原生 codegenNativeComponent 不應在 Web 載入
+- [x] 修復 Expo Go 啟動錯誤：RNMapsAirModule 不存在，改用不依賴 react-native-maps 的地圖首頁

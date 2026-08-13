@@ -24,6 +24,9 @@ const MAPPING = {
   pencil: "edit",
   photo: "photo-library",
   "video.fill": "movie",
+  "cloud.fill": "cloud",
+  "arrow.up.circle": "cloud-upload",
+  "arrow.down.circle": "cloud-download",
   map: "map",
   store: "store",
 } satisfies Record<string, IconName>;

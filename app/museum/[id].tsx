@@ -73,7 +73,7 @@ export default function MuseumDetailScreen() {
   };
 
   if (loading) return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={colors.primary} /></ScreenContainer>;
-  if (!museum) return <ScreenContainer edges={["top", "bottom", "left", "right"]}><View style={styles.missingState}><IconSymbol name="building.2.fill" size={34} color={colors.primary} /><Text style={[styles.missingTitle, { color: colors.foreground }]}>目前沒有可顯示的博物館</Text><Text style={[styles.missingText, { color: colors.muted }]}>{loadError ?? "請先登入自己的帳戶，或從博物館清單選擇有效的紀錄。"}</Text><Pressable onPress={() => router.back()} style={({ pressed }) => [styles.missingButton, { borderColor: colors.primary }, pressed && styles.pressed]}><Text style={[styles.missingButtonText, { color: colors.primary }]}>返回上一頁</Text></Pressable></View></ScreenContainer>;
+  if (!museum) return <ScreenContainer edges={["top", "bottom", "left", "right"]}><View style={styles.missingState}><IconSymbol name="building.2.fill" size={34} color={colors.primary} /><Text style={[styles.missingTitle, { color: colors.foreground }]}>目前沒有可顯示的博物館</Text><Text style={[styles.missingText, { color: colors.muted }]}>{loadError ?? "請從博物館清單選擇有效的紀錄，或先新增一間博物館。"}</Text><Pressable onPress={() => router.back()} style={({ pressed }) => [styles.missingButton, { borderColor: colors.primary }, pressed && styles.pressed]}><Text style={[styles.missingButtonText, { color: colors.primary }]}>返回上一頁</Text></Pressable></View></ScreenContainer>;
   const media = getMuseumMedia(museum);
   const photoCount = media.filter((item) => item.type === "photo").length;
   const videoCount = media.filter((item) => item.type === "video").length;

@@ -3,6 +3,7 @@ export type AccountKey = string;
 type AccountIdentity = { id: number; openId: string };
 
 const ACCOUNT_STORAGE_PREFIX = "wanderstamp.account.v1";
+export const GUEST_ACCOUNT_KEY = "guest";
 
 function sanitize(value: string): string {
   return value.trim().replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 96) || "anonymous";

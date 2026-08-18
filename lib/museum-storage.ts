@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getAccountStorageKey, getActiveAccountKey, legacyMuseumStorageKey, legacyProfileStorageKey } from "@/lib/account-scope";
+import { GUEST_ACCOUNT_KEY } from "@/lib/account-keys";
 import type { MuseumDraft, MuseumItem, MuseumMedia, MuseumPhoto, UserProfile } from "@/types/museum";
 import { DEFAULT_PROFILE, normalizeMuseum, normalizePhotos, normalizeProfile } from "@/types/museum";
 export type { MuseumDraft } from "@/types/museum";
@@ -18,7 +19,12 @@ const SEED: MuseumItem[] = [
 export type MuseumRecordDraft = Omit<MuseumItem, "id" | "createdAt">;
 
 async function getRequiredAccount() {
-  return getActiveAccountKey();
+  const accountKey = await getActiveAccountKey();
+  return accountKey ?? GUEST_ACCOUNT_KEY;
+}
+
+async function isGuestStorage() {
+  return (await getActiveAccountKey()) === null;
 }
 
 export async function hasLegacyDeviceData(): Promise<boolean> {
@@ -34,7 +40,7 @@ export async function hasLegacyDeviceData(): Promise<boolean> {
 
 export async function importLegacyDeviceData(): Promise<{ museumCount: number; hasProfile: boolean }> {
   const accountKey = await getRequiredAccount();
-  if (!accountKey) throw new Error("請先登入自己的帳戶，才能匯入這台裝置的舊紀錄。");
+  if (!accountKey) throw new Error("目前無法建立本機訪客資料空間，請稍後再試。");
   const [legacyMuseums, legacyProfile] = await Promise.all([
     AsyncStorage.getItem(legacyMuseumStorageKey),
     AsyncStorage.getItem(legacyProfileStorageKey),
@@ -71,9 +77,8 @@ export async function discardLegacyDeviceData(): Promise<void> {
 
 export async function getMuseums(): Promise<MuseumItem[]> {
   const accountKey = await getRequiredAccount();
-  if (!accountKey) return [];
   const raw = await AsyncStorage.getItem(getAccountStorageKey(accountKey, MUSEUMS_RESOURCE));
-  if (!raw) return [];
+  if (!raw) return (await isGuestStorage()) ? SEED.map(normalizeMuseum) : [];
   try {
     return (JSON.parse(raw) as MuseumItem[]).map(normalizeMuseum);
   } catch {
@@ -83,7 +88,6 @@ export async function getMuseums(): Promise<MuseumItem[]> {
 
 export async function saveMuseums(items: MuseumItem[]): Promise<void> {
   const accountKey = await getRequiredAccount();
-  if (!accountKey) throw new Error("請先登入自己的帳戶，才能儲存博物館足跡。");
   await AsyncStorage.setItem(getAccountStorageKey(accountKey, MUSEUMS_RESOURCE), JSON.stringify(items.map(normalizeMuseum)));
 }
 
@@ -128,7 +132,6 @@ export async function getStoredProfile(): Promise<UserProfile> {
 
 export async function saveStoredProfile(profile: UserProfile): Promise<void> {
   const accountKey = await getRequiredAccount();
-  if (!accountKey) throw new Error("請先登入自己的帳戶，才能儲存個人資料。");
   try {
     await AsyncStorage.setItem(getAccountStorageKey(accountKey, PROFILE_RESOURCE), JSON.stringify(normalizeProfile(profile)));
   } catch (error) {
@@ -151,7 +154,7 @@ export function getDraft(): MuseumRecordDraft { return { name: "", city: "", cou
 export function isDraftValid(draft: MuseumRecordDraft) { return Boolean(draft.name.trim() && draft.city.trim() && draft.country.trim()); }
 export function getMuseumSummary(museum: MuseumItem) { return `${museum.city} · ${museum.country}`; }
 export function getMuseumNote(museum: MuseumItem) { return museum.note || "尚未留下參觀筆記"; }
-export function getStorageStatus() { return "個人帳戶儲存 · 離線也能記錄"; }
+export function getStorageStatus() { return "訪客資料保存在本機 · 登入後可跨裝置同步"; }
 export function resetMuseums() { return saveMuseums([]); }
 export function getRecentMuseums(items: MuseumItem[], limit = 3) { return sortMuseums(items).slice(0, limit); }
 export function filterMuseums(items: MuseumItem[], country: string | null, year: string | null) { return items.filter((m) => (!country || m.country === country) && (!year || m.visitedDate.startsWith(year))); }

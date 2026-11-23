@@ -1,9 +1,15 @@
-import * as SecureStore from "expo-secure-store";
+import * as Linking from "expo-linking";
+import * as WebBrowser from "expo-web-browser";
 import { Platform } from "react-native";
-import { SESSION_TOKEN_KEY, USER_INFO_KEY } from "@/constants/oauth";
+import type { Session, User as SupabaseUser } from "@supabase/supabase-js";
+import { requireSupabase, supabase } from "@/lib/supabase";
+
+WebBrowser.maybeCompleteAuthSession();
 
 export type User = {
-  id: number;
+  /** Supabase auth user id (uuid). */
+  id: string;
+  /** Kept for the account-scoped storage keys; equals `id`. */
   openId: string;
   name: string | null;
   email: string | null;
@@ -11,119 +17,119 @@ export type User = {
   lastSignedIn: Date;
 };
 
-export async function getSessionToken(): Promise<string | null> {
-  try {
-    // Web platform uses cookie-based auth, no manual token management needed
-    if (Platform.OS === "web") {
-      console.log("[Auth] Web platform uses cookie-based auth, skipping token retrieval");
-      return null;
-    }
+export function toAppUser(user: SupabaseUser): User {
+  const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+  const name = (meta.full_name as string) || (meta.name as string) || null;
+  return {
+    id: user.id,
+    openId: user.id,
+    name,
+    email: user.email ?? null,
+    loginMethod: (user.app_metadata?.provider as string) ?? null,
+    lastSignedIn: new Date(user.last_sign_in_at ?? Date.now()),
+  };
+}
 
-    // Use SecureStore for native
-    console.log("[Auth] Getting session token...");
-    const token = await SecureStore.getItemAsync(SESSION_TOKEN_KEY);
-    console.log(
-      "[Auth] Session token retrieved from SecureStore:",
-      token ? `present (${token.substring(0, 20)}...)` : "missing",
-    );
-    return token;
+/** Reads the locally persisted session (no network). */
+export async function getSession(): Promise<Session | null> {
+  if (!supabase) return null;
+  try {
+    const { data } = await supabase.auth.getSession();
+    return data.session;
   } catch (error) {
-    console.error("[Auth] Failed to get session token:", error);
+    console.warn("[Auth] getSession failed", error);
     return null;
-  }
-}
-
-export async function setSessionToken(token: string): Promise<void> {
-  try {
-    // Web platform uses cookie-based auth, no manual token management needed
-    if (Platform.OS === "web") {
-      console.log("[Auth] Web platform uses cookie-based auth, skipping token storage");
-      return;
-    }
-
-    // Use SecureStore for native
-    console.log("[Auth] Setting session token...", token.substring(0, 20) + "...");
-    await SecureStore.setItemAsync(SESSION_TOKEN_KEY, token);
-    console.log("[Auth] Session token stored in SecureStore successfully");
-  } catch (error) {
-    console.error("[Auth] Failed to set session token:", error);
-    throw error;
-  }
-}
-
-export async function removeSessionToken(): Promise<void> {
-  try {
-    // Web platform uses cookie-based auth, logout is handled by server clearing cookie
-    if (Platform.OS === "web") {
-      console.log("[Auth] Web platform uses cookie-based auth, skipping token removal");
-      return;
-    }
-
-    // Use SecureStore for native
-    console.log("[Auth] Removing session token...");
-    await SecureStore.deleteItemAsync(SESSION_TOKEN_KEY);
-    console.log("[Auth] Session token removed from SecureStore successfully");
-  } catch (error) {
-    console.error("[Auth] Failed to remove session token:", error);
   }
 }
 
 export async function getUserInfo(): Promise<User | null> {
-  try {
-    console.log("[Auth] Getting user info...");
-
-    let info: string | null = null;
-    if (Platform.OS === "web") {
-      // Use localStorage for web
-      info = window.localStorage.getItem(USER_INFO_KEY);
-    } else {
-      // Use SecureStore for native
-      info = await SecureStore.getItemAsync(USER_INFO_KEY);
-    }
-
-    if (!info) {
-      console.log("[Auth] No user info found");
-      return null;
-    }
-    const user = JSON.parse(info);
-    console.log("[Auth] User info retrieved:", user);
-    return user;
-  } catch (error) {
-    console.error("[Auth] Failed to get user info:", error);
-    return null;
-  }
+  const session = await getSession();
+  return session?.user ? toAppUser(session.user) : null;
 }
 
-export async function setUserInfo(user: User): Promise<void> {
-  try {
-    console.log("[Auth] Setting user info...", user);
-
-    if (Platform.OS === "web") {
-      // Use localStorage for web
-      window.localStorage.setItem(USER_INFO_KEY, JSON.stringify(user));
-      console.log("[Auth] User info stored in localStorage successfully");
-      return;
-    }
-
-    // Use SecureStore for native
-    await SecureStore.setItemAsync(USER_INFO_KEY, JSON.stringify(user));
-    console.log("[Auth] User info stored in SecureStore successfully");
-  } catch (error) {
-    console.error("[Auth] Failed to set user info:", error);
-  }
+/** Deep link the auth provider returns to, e.g. wanderstamp://auth/callback */
+export function getAuthRedirectUrl(next?: "reset"): string {
+  return Linking.createURL("/auth/callback", next ? { queryParams: { next } } : undefined);
 }
 
-export async function clearUserInfo(): Promise<void> {
-  try {
-    if (Platform.OS === "web") {
-      // Use localStorage for web
-      window.localStorage.removeItem(USER_INFO_KEY);
-      return;
-    }
+export async function signInWithEmail(email: string, password: string): Promise<void> {
+  const { error } = await requireSupabase().auth.signInWithPassword({ email: email.trim(), password });
+  if (error) throw new Error(translateAuthError(error.message));
+}
 
-    // Use SecureStore for native
-    await SecureStore.deleteItemAsync(USER_INFO_KEY);
-  } catch (error) {
-    console.error("[Auth] Failed to clear user info:", error);
+/** Returns true when the account needs email confirmation before first login. */
+export async function signUpWithEmail(email: string, password: string, newsletterOptIn: boolean): Promise<{ needsConfirmation: boolean }> {
+  const { data, error } = await requireSupabase().auth.signUp({
+    email: email.trim(),
+    password,
+    options: {
+      emailRedirectTo: getAuthRedirectUrl(),
+      data: { newsletter_opt_in: newsletterOptIn, newsletter_consent_at: newsletterOptIn ? new Date().toISOString() : null },
+    },
+  });
+  if (error) throw new Error(translateAuthError(error.message));
+  return { needsConfirmation: !data.session };
+}
+
+export async function sendPasswordReset(email: string): Promise<void> {
+  const { error } = await requireSupabase().auth.resetPasswordForEmail(email.trim(), { redirectTo: getAuthRedirectUrl("reset") });
+  if (error) throw new Error(translateAuthError(error.message));
+}
+
+export async function signInWithGoogle(): Promise<boolean> {
+  const client = requireSupabase();
+  const redirectTo = Platform.OS === "web" && typeof window !== "undefined" ? window.location.origin : getAuthRedirectUrl();
+  const { data, error } = await client.auth.signInWithOAuth({ provider: "google", options: { redirectTo, skipBrowserRedirect: Platform.OS !== "web" } });
+  if (error) throw new Error(translateAuthError(error.message));
+  if (Platform.OS === "web") return false; // browser redirects; session is picked up from the URL on return
+
+  const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+  if (result.type !== "success") return false;
+  return completeAuthFromUrl(result.url);
+}
+
+/** Handles wanderstamp://auth/callback?code=... (PKCE) after OAuth, email confirmation or password reset links. */
+export async function completeAuthFromUrl(url: string): Promise<boolean> {
+  const client = requireSupabase();
+  const { queryParams } = Linking.parse(url);
+  const hash = url.includes("#") ? new URLSearchParams(url.split("#")[1]) : null;
+  const errorDescription = (queryParams?.error_description as string) || hash?.get("error_description");
+  if (errorDescription) throw new Error(errorDescription);
+
+  const code = queryParams?.code as string | undefined;
+  if (code) {
+    const { error } = await client.auth.exchangeCodeForSession(code);
+    if (error) throw new Error(translateAuthError(error.message));
+    return true;
   }
+  const accessToken = hash?.get("access_token");
+  const refreshToken = hash?.get("refresh_token");
+  if (accessToken && refreshToken) {
+    const { error } = await client.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+    if (error) throw new Error(translateAuthError(error.message));
+    return true;
+  }
+  return false;
+}
+
+export async function updatePassword(password: string): Promise<void> {
+  const { error } = await requireSupabase().auth.updateUser({ password });
+  if (error) throw new Error(translateAuthError(error.message));
+}
+
+export async function signOut(): Promise<void> {
+  if (!supabase) return;
+  const { error } = await supabase.auth.signOut();
+  if (error) console.warn("[Auth] signOut failed", error.message);
+}
+
+function translateAuthError(message: string): string {
+  const lower = message.toLowerCase();
+  if (lower.includes("invalid login credentials")) return "Email 或密碼不正確。";
+  if (lower.includes("email not confirmed")) return "請先到信箱點擊確認連結，再登入。";
+  if (lower.includes("already registered")) return "這個 Email 已經註冊，請直接登入。";
+  if (lower.includes("password should be at least")) return "密碼至少需要 6 個字元。";
+  if (lower.includes("rate limit")) return "嘗試次數太多，請稍後再試。";
+  if (lower.includes("network")) return "網路連線失敗，請確認網路後再試。";
+  return message;
 }

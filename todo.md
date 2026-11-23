@@ -33,3 +33,5 @@
 - [x] 完成 Supabase／Firebase 帳號、資料庫、媒體儲存與跨裝置同步方案文件，待選定服務後接入正式雲端
 - [x] 將 Wanderstamp 升級為 Supabase-ready 整合版，支援登入、訪客資料合併、雲端同步與照片 Storage 上傳，並產出完整的 SQL schema、RLS 政策與設定說明書
 - [x] 升級網站登入面板，加入 Google 登入、電子報訂閱勾選、Email 與 Password 登入表單，並完善 Supabase 身份驗證與同意紀錄
+
+- [x] 移除 Manus 依賴：登入、雲端備份與照片儲存改用 Supabase（見 SUPABASE_SETUP.md），訪客資料登入後自動移入帳戶

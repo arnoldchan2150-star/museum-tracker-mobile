@@ -1,12 +1,12 @@
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import * as Haptics from "expo-haptics";
-import { useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
 import { useAuth } from "@/hooks/use-auth";
-import { startOAuthLogin } from "@/constants/oauth";
+import { isSupabaseConfigured, NOT_CONFIGURED_MESSAGE } from "@/lib/supabase";
 import { backupLocalData, formatSyncTime, restoreCloudData } from "@/lib/cloud-sync";
 import { cancelAutoSyncRuntime, clearPendingSync, getAutoSyncEnabled, isPendingSync, markDataChanged, retryPendingAutoSync, setAutoSyncEnabled } from "@/lib/auto-sync";
 import { discardLegacyDeviceData, getBadgeLabel, getMuseums, getProfileCopy, getProfileFooter, getProfileSubtitle, hasLegacyDeviceData, importLegacyDeviceData, saveStoredProfile, getStoredProfile } from "@/lib/museum-storage";
@@ -57,8 +57,9 @@ export default function ProfileScreen() {
   };
 
   const login = async () => {
-    setSyncMessage("正在開啟登入頁面…");
-    await startOAuthLogin();
+    if (!isSupabaseConfigured) { setSyncMessage(NOT_CONFIGURED_MESSAGE); return; }
+    setSyncMessage("");
+    router.push("/login");
   };
 
   const signOut = async () => {

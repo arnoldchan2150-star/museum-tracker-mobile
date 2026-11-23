@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getAccountStorageKey, getActiveAccountKey, legacyMuseumStorageKey, legacyProfileStorageKey } from "@/lib/account-scope";
-import { GUEST_ACCOUNT_KEY } from "@/lib/account-keys";
+import { GUEST_ACCOUNT_KEY, getAccountKeyFromUser } from "@/lib/account-keys";
 import type { MuseumDraft, MuseumItem, MuseumMedia, MuseumPhoto, UserProfile } from "@/types/museum";
 import { DEFAULT_PROFILE, normalizeMuseum, normalizePhotos, normalizeProfile } from "@/types/museum";
 export type { MuseumDraft } from "@/types/museum";
@@ -73,6 +73,35 @@ export async function importLegacyDeviceData(): Promise<{ museumCount: number; h
 export async function discardLegacyDeviceData(): Promise<void> {
   const accountKey = await getRequiredAccount();
   if (accountKey) await AsyncStorage.setItem(getAccountStorageKey(accountKey, "legacy-dismissed"), "true");
+}
+
+/**
+ * After signing in, move anything the user saved as a guest into their account
+ * (merged by id), so it isn't left behind under the guest key. Returns how many museums moved.
+ */
+export async function moveGuestDataToAccount(userId: string): Promise<number> {
+  const accountKey = getAccountKeyFromUser({ id: userId, openId: userId });
+  const guestMuseumsKey = getAccountStorageKey(GUEST_ACCOUNT_KEY, MUSEUMS_RESOURCE);
+  const guestProfileKey = getAccountStorageKey(GUEST_ACCOUNT_KEY, PROFILE_RESOURCE);
+  const accountMuseumsKey = getAccountStorageKey(accountKey, MUSEUMS_RESOURCE);
+  const accountProfileKey = getAccountStorageKey(accountKey, PROFILE_RESOURCE);
+  const [guestMuseumsRaw, guestProfileRaw, accountMuseumsRaw, accountProfileRaw] = await Promise.all([
+    AsyncStorage.getItem(guestMuseumsKey),
+    AsyncStorage.getItem(guestProfileKey),
+    AsyncStorage.getItem(accountMuseumsKey),
+    AsyncStorage.getItem(accountProfileKey),
+  ]);
+  const parse = (raw: string | null): MuseumItem[] => { try { const v = raw ? JSON.parse(raw) : []; return Array.isArray(v) ? v.map(normalizeMuseum) : []; } catch { return []; } };
+  const guestMuseums = parse(guestMuseumsRaw);
+  if (guestMuseums.length) {
+    const merged = new Map<string, MuseumItem>();
+    parse(accountMuseumsRaw).forEach((item) => merged.set(item.id, item));
+    guestMuseums.forEach((item) => { if (!merged.has(item.id)) merged.set(item.id, item); });
+    await AsyncStorage.setItem(accountMuseumsKey, JSON.stringify(sortMuseums(Array.from(merged.values()))));
+  }
+  if (guestProfileRaw && !accountProfileRaw) await AsyncStorage.setItem(accountProfileKey, guestProfileRaw);
+  if (guestMuseumsRaw || guestProfileRaw) await Promise.all([AsyncStorage.removeItem(guestMuseumsKey), AsyncStorage.removeItem(guestProfileKey)]);
+  return guestMuseums.length;
 }
 
 export async function getMuseums(): Promise<MuseumItem[]> {

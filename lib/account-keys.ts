@@ -1,6 +1,6 @@
 export type AccountKey = string;
 
-type AccountIdentity = { id: number; openId: string };
+type AccountIdentity = { id: string | number; openId: string };
 
 const ACCOUNT_STORAGE_PREFIX = "wanderstamp.account.v1";
 export const GUEST_ACCOUNT_KEY = "guest";

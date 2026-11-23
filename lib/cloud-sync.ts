@@ -1,47 +1,49 @@
-import { getApiBaseUrl } from "@/constants/oauth";
-import { createTRPCClient } from "@/lib/trpc";
+import * as Crypto from "expo-crypto";
 import { getMuseums, getStoredProfile, saveMuseums, saveStoredProfile } from "@/lib/museum-storage";
-import { getActiveAccountKey } from "@/lib/account-scope";
+import { getSession } from "@/lib/_core/auth";
+import { BACKUP_TABLE, MEDIA_BUCKET, requireSupabase } from "@/lib/supabase";
 import { getMuseumMedia, normalizeMuseum, normalizeProfile, type MuseumItem, type MuseumMedia, type UserProfile } from "@/types/museum";
 
 const SYNC_VERSION = 1;
-const client = createTRPCClient();
 
 type CloudSnapshot = { version: number; updatedAt: string; museums: MuseumItem[]; profile: UserProfile };
 
-function isLocalUri(uri: string): boolean {
-  return /^(file|content|ph|blob|data):/i.test(uri);
+export function isLocalUri(uri: string): boolean {
+  return /^(file|content|ph|blob|data|assets-library):/i.test(uri);
 }
 
 function getContentType(media: MuseumMedia): string {
-  if (media.type === "video") return "video/mp4";
+  if (media.type === "video") return media.uri.toLowerCase().includes(".mov") ? "video/quicktime" : "video/mp4";
   const lower = media.uri.toLowerCase();
-  if (lower.includes(".png")) return "image/png";
-  if (lower.includes(".webp")) return "image/webp";
+  if (lower.includes(".png") || lower.startsWith("data:image/png")) return "image/png";
+  if (lower.includes(".webp") || lower.startsWith("data:image/webp")) return "image/webp";
+  if (lower.includes(".heic")) return "image/heic";
   return "image/jpeg";
 }
 
-function getFileName(media: MuseumMedia): string {
-  const extension = media.type === "video" ? "mp4" : "jpg";
-  return `${media.id}.${extension}`;
+function getExtension(contentType: string): string {
+  return ({ "image/png": "png", "image/webp": "webp", "image/heic": "heic", "video/quicktime": "mov", "video/mp4": "mp4" } as Record<string, string>)[contentType] ?? "jpg";
 }
 
-function resolveRemoteUri(uri: string): string {
-  if (/^https?:\/\//i.test(uri)) return uri;
-  if (uri.startsWith("/")) return `${getApiBaseUrl()}${uri}`;
-  return uri;
+async function requireUserId(message: string): Promise<string> {
+  const session = await getSession();
+  if (!session?.user) throw new Error(message);
+  return session.user.id;
 }
 
-async function uploadMedia(media: MuseumMedia): Promise<MuseumMedia> {
+async function uploadMedia(userId: string, media: MuseumMedia): Promise<MuseumMedia> {
   if (!isLocalUri(media.uri)) return media;
+  const client = requireSupabase();
   const source = await fetch(media.uri);
-  if (!source.ok) throw new Error(`無法讀取媒體：${media.id}`);
-  const blob = await source.blob();
-  const contentType = blob.type || getContentType(media);
-  const prepared = await client.cloudSync.prepareUpload.mutate({ fileName: getFileName(media), contentType });
-  const uploaded = await fetch(prepared.uploadUrl, { method: "PUT", headers: { "Content-Type": contentType }, body: blob });
-  if (!uploaded.ok) throw new Error(`媒體上傳失敗：${media.id}`);
-  return { ...media, uri: prepared.url };
+  if (!source.ok && source.status !== 0) throw new Error(`無法讀取媒體：${media.id}`);
+  const body = await source.arrayBuffer();
+  const contentType = getContentType(media);
+  // Random file name so public URLs can't be guessed.
+  const path = `${userId}/${Crypto.randomUUID()}.${getExtension(contentType)}`;
+  const { error } = await client.storage.from(MEDIA_BUCKET).upload(path, body, { contentType, upsert: false });
+  if (error) throw new Error(`媒體上傳失敗：${error.message}`);
+  const { data } = client.storage.from(MEDIA_BUCKET).getPublicUrl(path);
+  return { ...media, uri: data.publicUrl };
 }
 
 function mergeMedia(local: MuseumMedia[], remote: MuseumMedia[]): MuseumMedia[] {
@@ -51,7 +53,7 @@ function mergeMedia(local: MuseumMedia[], remote: MuseumMedia[]): MuseumMedia[] 
   return Array.from(result.values());
 }
 
-function mergeMuseums(local: MuseumItem[], remote: MuseumItem[]): MuseumItem[] {
+export function mergeMuseums(local: MuseumItem[], remote: MuseumItem[]): MuseumItem[] {
   const result = new Map<string, MuseumItem>();
   local.forEach((item) => result.set(item.id, normalizeMuseum(item)));
   remote.forEach((item) => {
@@ -61,37 +63,53 @@ function mergeMuseums(local: MuseumItem[], remote: MuseumItem[]): MuseumItem[] {
   return Array.from(result.values()).sort((a, b) => b.visitedDate.localeCompare(a.visitedDate));
 }
 
-function parseSnapshot(payload: string): CloudSnapshot {
-  const parsed = JSON.parse(payload) as Partial<CloudSnapshot>;
-  if (!Array.isArray(parsed.museums) || !parsed.profile || typeof parsed.updatedAt !== "string") throw new Error("雲端備份格式無效");
-  return { version: typeof parsed.version === "number" ? parsed.version : SYNC_VERSION, updatedAt: parsed.updatedAt, museums: parsed.museums.map((item) => normalizeMuseum({ ...(item as MuseumItem), media: getMuseumMedia(item as MuseumItem).map((media) => ({ ...media, uri: resolveRemoteUri(media.uri) })) })), profile: normalizeProfile(parsed.profile) };
+function parseSnapshot(payload: unknown): CloudSnapshot {
+  const parsed = (typeof payload === "string" ? JSON.parse(payload) : payload) as Partial<CloudSnapshot>;
+  if (!parsed || !Array.isArray(parsed.museums) || !parsed.profile || typeof parsed.updatedAt !== "string") throw new Error("雲端備份格式無效");
+  return {
+    version: typeof parsed.version === "number" ? parsed.version : SYNC_VERSION,
+    updatedAt: parsed.updatedAt,
+    museums: parsed.museums.map((item) => normalizeMuseum(item as MuseumItem)),
+    profile: normalizeProfile(parsed.profile),
+  };
 }
 
 export async function backupLocalData(): Promise<{ updatedAt: string; mediaCount: number }> {
-  if (!(await getActiveAccountKey())) throw new Error("請先登入自己的帳戶，再進行雲端備份。");
+  const client = requireSupabase();
+  const userId = await requireUserId("請先登入自己的帳戶，再進行雲端備份。");
   const [museums, profile] = await Promise.all([getMuseums(), getStoredProfile()]);
   const uploadedMuseums: MuseumItem[] = [];
   let mediaCount = 0;
   for (const museum of museums) {
-    const media = getMuseumMedia(museum);
     const uploadedMedia: MuseumMedia[] = [];
-    for (const item of media) {
-      uploadedMedia.push(await uploadMedia(item));
+    for (const item of getMuseumMedia(museum)) {
+      uploadedMedia.push(await uploadMedia(userId, item));
       mediaCount += 1;
     }
     uploadedMuseums.push(normalizeMuseum({ ...museum, media: uploadedMedia }));
   }
-  const updatedAt = new Date().toISOString();
-  await client.cloudSync.save.mutate({ version: SYNC_VERSION, updatedAt, museums: uploadedMuseums, profile: { name: profile.name, title: profile.title, bio: profile.bio, avatar: profile.avatar ?? "", avatarUri: profile.avatarUri ?? "" } });
+  // Save uploaded URLs locally first, so a later failure never re-uploads the same files.
   await saveMuseums(uploadedMuseums);
+
+  const updatedAt = new Date().toISOString();
+  const snapshot: CloudSnapshot = {
+    version: SYNC_VERSION,
+    updatedAt,
+    museums: uploadedMuseums,
+    profile: { name: profile.name, title: profile.title, bio: profile.bio, avatar: profile.avatar ?? "", avatarUri: profile.avatarUri ?? "" },
+  };
+  const { error } = await client.from(BACKUP_TABLE).upsert({ user_id: userId, payload: snapshot, version: SYNC_VERSION, updated_at: updatedAt }, { onConflict: "user_id" });
+  if (error) throw new Error(`雲端備份失敗：${error.message}`);
   return { updatedAt, mediaCount };
 }
 
 export async function restoreCloudData(): Promise<{ updatedAt: string; museumCount: number; mediaCount: number } | null> {
-  if (!(await getActiveAccountKey())) throw new Error("請先登入自己的帳戶，再從雲端還原。");
-  const remote = await client.cloudSync.get.query();
-  if (!remote) return null;
-  const snapshot = parseSnapshot(remote.payload);
+  const client = requireSupabase();
+  const userId = await requireUserId("請先登入自己的帳戶，再從雲端還原。");
+  const { data, error } = await client.from(BACKUP_TABLE).select("payload").eq("user_id", userId).maybeSingle();
+  if (error) throw new Error(`讀取雲端備份失敗：${error.message}`);
+  if (!data) return null;
+  const snapshot = parseSnapshot(data.payload);
   const [localMuseums, localProfile] = await Promise.all([getMuseums(), getStoredProfile()]);
   const merged = mergeMuseums(localMuseums, snapshot.museums);
   await saveMuseums(merged);
